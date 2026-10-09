@@ -745,7 +745,6 @@ export default function Home() {
         <div className="top-actions">
           <a className="how-link" href="/how-it-works">How it works</a>
           <a className="feedback-nav" href="/feedback">Feedback</a>
-          <span className="market-pill"><span className="flag">CA</span> Canada · {search.currency}</span>
           {userEmail ? <div className="account-menu"><span className="user-dot">{userEmail.slice(0, 1).toUpperCase()}</span><button className="text-button" onClick={openProviderKeySettings}>API key</button><button className="text-button" onClick={signOut}>Sign out</button></div> : <button className="sign-in" onClick={() => { setAccountMessage(""); setAccountOpen(true); }}>Sign in <span>↗</span></button>}
         </div>
       </header>
