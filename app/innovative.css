@@ -251,3 +251,24 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible { 
   .public-feedback-item { padding: 12px; }
   .public-feedback-item p { font-size: 11px; }
 }
+
+.feedback-nav { padding: 10px 12px; border-radius: 999px; color: #315b60; font-size: 11px; font-weight: 700; white-space: nowrap; transition: background .2s, color .2s; }
+.feedback-nav:hover { background: #e4efec; color: #123e46; }
+.feedback-page-section { max-width: 900px; margin: 32px auto 0; padding-top: 0; border-top: 0; }
+.feedback-page-section .feedback-intro h1 { margin: 7px 0; color: #173946; font: 800 30px 'Manrope',sans-serif; letter-spacing: -1px; line-height: 1.25; }
+.feedback-page-section .feedback-board-heading h2 { margin: 0; color: #173946; font: 750 18px 'Manrope',sans-serif; }
+.feedback-page-section+.footer { margin-top: 45px; }
+.footer-feedback-link { color: #176b53; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.footer-feedback-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 760px) {
+  .feedback-nav { padding: 8px 7px; font-size: 9px; }
+  .feedback-page-section { margin-top: 21px; }
+  .feedback-page-section .feedback-intro h1 { font-size: 24px; }
+}
+@media (max-width: 430px) {
+  .feedback-nav { display: none; }
+}
+@media (max-width: 430px) {
+  .market-pill { display: none; }
+  .feedback-nav { display: inline-flex; }
+}

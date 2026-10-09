@@ -5,7 +5,7 @@ export default function HowItWorksPage() {
         <a className="brand" href="/" aria-label="Fare Glow home">
           <span className="brand-mark" aria-hidden="true">✦</span><span>Fare <span className="brand-glow">Glow</span></span>
         </a>
-        <div className="top-actions"><a className="sign-in" href="/">Find fares <span>↗</span></a></div>
+        <div className="top-actions"><a className="how-link" href="/feedback">Feedback</a><a className="sign-in" href="/">Find fares <span>↗</span></a></div>
       </header>
 
       <section className="mission-section how-page" aria-labelledby="mission-heading">
@@ -23,7 +23,7 @@ export default function HowItWorksPage() {
         <p className="mission-audience"><strong>Who is it for?</strong> Anyone hoping to spend less by being flexible with flight dates: people planning vacation around work, families planning around school breaks, students, and budget-conscious travellers. Fares can change, and only the dates checked are compared.</p>
       </section>
 
-      <footer className="footer"><div className="footer-brand"><span className="brand-mark small" aria-hidden="true">✦</span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-country"><a href="/">Back to flight search</a></span><span className="footer-credit">Dileep Kodira App</span></footer>
+      <footer className="footer"><div className="footer-brand"><span className="brand-mark small" aria-hidden="true">✦</span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-country"><a href="/feedback">Community feedback</a> · <a href="/">Back to flight search</a></span><span className="footer-credit">Dileep Kodira App</span></footer>
     </main>
   );
 }

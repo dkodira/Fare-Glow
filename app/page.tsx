@@ -311,14 +311,6 @@ export default function Home() {
   const [accountBusy, setAccountBusy] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [toast, setToast] = useState("");
-  const [feedbackCategory, setFeedbackCategory] = useState("Idea");
-  const [feedbackMessage, setFeedbackMessage] = useState("");
-  const [feedbackNotice, setFeedbackNotice] = useState("");
-  const [feedbackBusy, setFeedbackBusy] = useState(false);
-  const [publicFeedback, setPublicFeedback] = useState<Array<{ id: string; category: string; message: string; created_at: string }>>([]);
-  const [feedbackOffset, setFeedbackOffset] = useState(0);
-  const [feedbackHasMore, setFeedbackHasMore] = useState(false);
-  const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [providerKeyOpen, setProviderKeyOpen] = useState(false);
   const [providerKeyValue, setProviderKeyValue] = useState("");
   const [providerKeyConfigured, setProviderKeyConfigured] = useState(false);
@@ -478,7 +470,6 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  useEffect(() => { void loadPublicFeedback(0, false); }, []);
 
   const cheapest = useMemo(() => offers[0]?.price ?? 0, [offers]);
 
@@ -508,39 +499,6 @@ export default function Home() {
       : sortBy === 6 ? (a.emissionsGrams ?? Infinity) - (b.emissionsGrams ?? Infinity)
       : sortBy === 1 ? 0 : a.price - b.price;
     return [...items].sort(compare).filter((offer, index, all) => all.findIndex(item => item.id === offer.id) === index);
-  }
-
-  async function loadPublicFeedback(offset = feedbackOffset, append = true) {
-    setFeedbackLoading(true);
-    try {
-      const response = await fetch(`/api/feedback?limit=20&offset=${offset}`, { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? "Could not load community feedback.");
-      setPublicFeedback(current => append ? [...current, ...(data.feedback ?? [])] : (data.feedback ?? []));
-      setFeedbackHasMore(Boolean(data.hasMore));
-      setFeedbackOffset(offset + (data.feedback?.length ?? 0));
-    } catch {
-      setFeedbackNotice("Community feedback could not load. Try again in a moment.");
-    } finally { setFeedbackLoading(false); }
-  }
-
-  async function submitFeedback(event: FormEvent) {
-    event.preventDefault();
-    const message = feedbackMessage.trim();
-    if (message.length < 5) { setFeedbackNotice("Please add a little more detail (at least 5 characters)."); return; }
-    setFeedbackBusy(true);
-    setFeedbackNotice("");
-    const supabase = getSupabase();
-    if (!supabase) { setFeedbackNotice("Feedback is not connected yet. Supabase setup is required."); setFeedbackBusy(false); return; }
-    const { error: submitError } = await supabase.from("user_feedback").insert({ category: feedbackCategory, message });
-    if (submitError) setFeedbackNotice("We couldn’t send that feedback. Run the new SQL migration in Supabase, then try again.");
-    else {
-      setFeedbackMessage("");
-      setFeedbackNotice("Thank you. Your feedback is now visible on the public board below.");
-      setFeedbackOffset(0);
-      void loadPublicFeedback(0, false);
-    }
-    setFeedbackBusy(false);
   }
 
   async function saveAccountHistory(item: SearchHistoryItem) {
@@ -786,6 +744,7 @@ export default function Home() {
         </a>
         <div className="top-actions">
           <a className="how-link" href="/how-it-works">How it works</a>
+          <a className="feedback-nav" href="/feedback">Feedback</a>
           <span className="market-pill"><span className="flag">CA</span> Canada · {search.currency}</span>
           {userEmail ? <div className="account-menu"><span className="user-dot">{userEmail.slice(0, 1).toUpperCase()}</span><button className="text-button" onClick={openProviderKeySettings}>API key</button><button className="text-button" onClick={signOut}>Sign out</button></div> : <button className="sign-in" onClick={() => { setAccountMessage(""); setAccountOpen(true); }}>Sign in <span>↗</span></button>}
         </div>
@@ -899,20 +858,7 @@ export default function Home() {
         })}</div>}
       </section>
 
-      <section className="feedback-section" aria-labelledby="feedback-heading">
-        <div className="feedback-intro"><span className="section-kicker">COMMUNITY FEEDBACK</span><h2 id="feedback-heading">Help make Fare Glow better.</h2><p>Share an idea or tell us what isn’t working. Submissions appear publicly below, so please don’t include private or sensitive details.</p></div>
-        <form className="feedback-form" onSubmit={submitFeedback}>
-          <label className="input-block"><span>WHAT KIND OF FEEDBACK?</span><div className="input-wrap"><select value={feedbackCategory} onChange={event => setFeedbackCategory(event.target.value)}><option>Idea</option><option>Something is broken</option><option>Other</option></select></div></label>
-          <label className="input-block"><span>YOUR FEEDBACK</span><textarea value={feedbackMessage} onChange={event => setFeedbackMessage(event.target.value)} minLength={5} maxLength={2000} placeholder="Tell us what would make planning easier…" required /></label>
-          <div className="feedback-form-bottom"><small>{feedbackMessage.length}/2000 characters · visible to everyone</small><button className="search-button" type="submit" disabled={feedbackBusy}>{feedbackBusy ? "Sending…" : "Post feedback"}<ArrowIcon /></button></div>
-          {feedbackNotice && <p className="feedback-notice" role="status">{feedbackNotice}</p>}
-        </form>
-        <div className="feedback-board-heading"><h3>Recent feedback</h3><span>Public community board · {publicFeedback.length} shown</span></div>
-        {publicFeedback.length === 0 && !feedbackLoading ? <div className="saved-empty">{feedbackNotice.includes("could not load") ? "The feedback board is temporarily unavailable." : "No feedback yet. You can be the first to share an idea."}</div> : <div className="public-feedback-list">{publicFeedback.map(item => <article className="public-feedback-item" key={item.id}><div><span className="feedback-category">{item.category}</span><time dateTime={item.created_at}>{new Date(item.created_at).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })}</time></div><p>{item.message}</p></article>)}</div>}
-        {feedbackHasMore && <button className="load-feedback" type="button" disabled={feedbackLoading} onClick={() => loadPublicFeedback()}>{feedbackLoading ? "Loading…" : "Show more feedback"}</button>}
-      </section>
-
-      <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-api-usage">SerpApi requests left this month: <strong>{usageRemaining === null ? "run a search to check" : usageRemaining}</strong>{usageKeySource && <small> · using {usageKeySource}</small>}</span><span className="footer-country">Made for Canadian travellers · {search.currency}</span><span className="footer-credit">Dileep Kodira App</span></footer>
+      <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-api-usage">SerpApi requests left this month: <strong>{usageRemaining === null ? "run a search to check" : usageRemaining}</strong>{usageKeySource && <small> · using {usageKeySource}</small>}</span><span className="footer-country">Made for Canadian travellers · {search.currency}</span><a className="footer-feedback-link" href="/feedback">Community feedback</a><span className="footer-credit">Dileep Kodira App</span></footer>
 
       {accountOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAccountOpen(false); }}><section className="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title"><button className="modal-close" onClick={() => setAccountOpen(false)} aria-label="Close">×</button><span className="modal-mark"><SparkIcon /></span><span className="section-kicker">FARE GLOW ACCOUNT</span><h2 id="account-title">Keep your dates close.</h2><p>Sign in to save searches to your account.</p>
         {supabaseReady ? <><button className="google-signin" type="button" onClick={signInWithGoogle} disabled={accountBusy}><span className="google-mark" aria-hidden="true">G</span>{accountBusy ? "Connecting to Google…" : "Continue with Google"}</button><div className="auth-divider"><span>or sign in with email</span></div><form onSubmit={signIn}><label className="input-block"><span>EMAIL ADDRESS</span><div className="input-wrap"><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required /></div></label><button className="search-button modal-submit" type="submit" disabled={accountBusy}>{accountBusy ? "Sending link…" : "Email me a sign-in link"}<ArrowIcon /></button></form></> : <div className="setup-note"><strong>Account connection needed</strong><span>Supabase account details are not set up yet. The setup guide explains how to switch on sign-in and saved searches.</span></div>}
