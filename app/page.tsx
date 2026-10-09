@@ -638,7 +638,7 @@ export default function Home() {
         </a>
         <div className="top-actions">
           <span className="market-pill"><span className="flag">CA</span> Canada · CAD</span>
-          {userEmail ? <div className="account-menu"><span className="user-dot">{userEmail.slice(0, 1).toUpperCase()}</span><button className="text-button" onClick={openProviderKeySettings}>API key</button><button className="text-button" onClick={signOut}>Sign out</button></div> : <><button className="text-button" onClick={openProviderKeySettings}>Add API key</button><button className="sign-in" onClick={() => { setAccountMessage(""); setAccountOpen(true); }}>Sign in <span>↗</span></button></>}
+          {userEmail ? <div className="account-menu"><span className="user-dot">{userEmail.slice(0, 1).toUpperCase()}</span><button className="text-button" onClick={openProviderKeySettings}>API key</button><button className="text-button" onClick={signOut}>Sign out</button></div> : <button className="sign-in" onClick={() => { setAccountMessage(""); setAccountOpen(true); }}>Sign in <span>↗</span></button>}
         </div>
       </header>
 
