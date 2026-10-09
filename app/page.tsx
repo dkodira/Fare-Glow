@@ -2,10 +2,12 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { getSupabase, hasSupabaseConfig } from "@/lib/supabase";
+import type { Session } from "@supabase/supabase-js";
 import { FARE_CURRENCIES, type AdvancedFilters, type FareCurrency, type FlightOffer, type SearchInput } from "@/lib/types";
 
 type SavedSearch = { id: string; origin: string; destination: string; date_from: string; date_to: string; min_nights: number; max_nights: number; travellers: number };
 type SearchHistoryItem = { id: string; searchedAt: string; search: SearchInput; offers: FlightOffer[]; checked: number; total: number };
+type SearchHistoryRow = { id: string; searched_at: string; search_data: SearchInput; offers: FlightOffer[]; checked_pairs: number; total_pairs: number };
 const HISTORY_STORAGE_KEY = "fare-glow-search-history-v1";
 const bookingTips = [
   { title: "Tuesday booking myth:", text: "Google’s 2025 U.S. data found booking on Tuesday averaged just 1.3% less than Sunday. Search whenever it suits you." },
@@ -169,25 +171,35 @@ function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
 }) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [worldwideMatches, setWorldwideMatches] = useState<typeof airportOptions>([]);
+  const [airportLoading, setAirportLoading] = useState(false);
   const query = normalizeAirportSearch(value);
   const queryParts = query.split(/\s+/).filter(Boolean);
-  const matches = query ? airportOptions
+  const localMatches = query ? airportOptions
     .filter(airport => {
       const haystack = normalizeAirportSearch(`${airport.city} ${airport.name} ${airport.code} ${airport.country}`);
       return queryParts.every(part => haystack.includes(part));
-    })
-    .sort((a, b) => {
-      const rank = (airport: typeof airportOptions[number]) => {
-        const code = normalizeAirportSearch(airport.code);
-        const city = normalizeAirportSearch(airport.city);
-        if (code === query) return 0;
-        if (city.startsWith(query)) return 1;
-        if (normalizeAirportSearch(airport.name).startsWith(query)) return 2;
-        return 3;
-      };
-      return rank(a) - rank(b);
-    }).slice(0, 8) : quickPickAirportCodes.map(code => airportOptions.find(airport => airport.code === code)).filter((airport): airport is typeof airportOptions[number] => Boolean(airport));
+    }).slice(0, 8) : [];
+  const matches = query
+    ? (worldwideMatches.length ? worldwideMatches : localMatches)
+    : quickPickAirportCodes.map(code => airportOptions.find(airport => airport.code === code)).filter((airport): airport is typeof airportOptions[number] => Boolean(airport));
   const listId = `airport-suggestions-${field}`;
+
+  useEffect(() => {
+    if (query.length < 2) { setWorldwideMatches([]); setAirportLoading(false); return; }
+    const controller = new AbortController();
+    setWorldwideMatches([]);
+    setAirportLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/airports?q=${encodeURIComponent(value)}`, { signal: controller.signal });
+        const data = await response.json();
+        if (response.ok && Array.isArray(data.airports)) setWorldwideMatches(data.airports);
+      } catch { /* Keep the popular airport list available if the global directory is offline. */ }
+      finally { if (!controller.signal.aborted) setAirportLoading(false); }
+    }, 180);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [query, value]);
 
   function chooseAirport(airport: typeof airportOptions[number]) {
     onChange(`${airport.city} (${airport.code})`);
@@ -223,7 +235,7 @@ function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
         />
       </div>
       {open && <div className="airport-suggestions" id={listId} role="listbox" aria-label={`${label === "FROM" ? "Departure" : "Destination"} airports`}>
-        {!query && <div className="airport-list-heading">Popular airports · type to search</div>}
+        {!query && <div className="airport-list-heading">Popular airports · type to search worldwide</div>}
         {matches.length ? matches.map((airport, index) => <div
           className={`airport-suggestion${index === activeIndex ? " is-active" : ""}`}
           id={`${listId}-${airport.code}`}
@@ -234,7 +246,8 @@ function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
         >
           <span className="airport-suggestion-main"><strong>{airport.city}</strong><small>{airport.name} · {airport.country}</small></span>
           <b className="airport-suggestion-code">{airport.code}</b>
-        </div>) : <div className="airport-no-results">No match yet. Try a city or 3-letter airport code.</div>}
+        </div>) : airportLoading ? <div className="airport-no-results">Searching worldwide airports…</div> : <div className="airport-no-results">No airport found. Try its city, name, or 3-letter IATA code.</div>}
+        <a className="airport-data-credit" href="https://ourairports.com/data/" target="_blank" rel="noreferrer">Worldwide airport directory · OurAirports</a>
       </div>}
     </div>
   </div>;
@@ -277,6 +290,8 @@ export default function Home() {
   const [airlineQuery, setAirlineQuery] = useState("");
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const [historyReady, setHistoryReady] = useState(false);
+  const [historyStorageMode, setHistoryStorageMode] = useState<"loading" | "device" | "account">("loading");
+  const [historyError, setHistoryError] = useState("");
   const [activeHistoryId, setActiveHistoryId] = useState("");
   const [offers, setOffers] = useState<FlightOffer[]>([]);
   const [searched, setSearched] = useState(false);
@@ -296,6 +311,14 @@ export default function Home() {
   const [accountBusy, setAccountBusy] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
   const [toast, setToast] = useState("");
+  const [feedbackCategory, setFeedbackCategory] = useState("Idea");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [feedbackNotice, setFeedbackNotice] = useState("");
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const [publicFeedback, setPublicFeedback] = useState<Array<{ id: string; category: string; message: string; created_at: string }>>([]);
+  const [feedbackOffset, setFeedbackOffset] = useState(0);
+  const [feedbackHasMore, setFeedbackHasMore] = useState(false);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [providerKeyOpen, setProviderKeyOpen] = useState(false);
   const [providerKeyValue, setProviderKeyValue] = useState("");
   const [providerKeyConfigured, setProviderKeyConfigured] = useState(false);
@@ -314,32 +337,83 @@ export default function Home() {
   }, [bookingTipIndex, bookingTipsPaused]);
 
   useEffect(() => {
-    try {
-      const savedHistory = window.localStorage.getItem(HISTORY_STORAGE_KEY);
-      if (savedHistory) {
-        const parsed = JSON.parse(savedHistory);
-        if (Array.isArray(parsed)) setSearchHistory(parsed.slice(0, 10));
+    let cancelled = false;
+    let currentUserId: string | null | undefined;
+    const readDeviceHistory = (): SearchHistoryItem[] => {
+      try {
+        const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.slice(0, 10) as SearchHistoryItem[] : [];
+      } catch { return []; }
+    };
+    const loadSessionHistory = async (session: Session | null) => {
+      const user = session?.user ?? null;
+      const userId = user?.id ?? null;
+      if (currentUserId === userId) return;
+      currentUserId = userId;
+      setUserEmail(user?.email ?? null);
+      setHistoryError("");
+      if (!user) {
+        setHistoryStorageMode("device");
+        setSearchHistory(readDeviceHistory());
+        setHistoryReady(true);
+        return;
       }
-    } catch { /* Ignore unavailable or invalid local history. */ }
-    setHistoryReady(true);
+
+      setHistoryStorageMode("account");
+      setHistoryReady(false);
+      const supabase = getSupabase();
+      if (!supabase) return;
+      const deviceHistory = readDeviceHistory();
+      if (deviceHistory.length) {
+        const rows = deviceHistory.map(item => ({
+          user_id: user.id, id: item.id, searched_at: item.searchedAt,
+          search_data: item.search, offers: item.offers,
+          checked_pairs: item.checked, total_pairs: item.total,
+        }));
+        const { error } = await supabase.from("search_history").upsert(rows, { onConflict: "user_id,id" });
+        if (cancelled || currentUserId !== user.id) return;
+        if (error) {
+          setSearchHistory(deviceHistory);
+          setHistoryError("Account history needs a database update. Run the new account-history SQL migration in Supabase.");
+          setHistoryReady(true);
+          return;
+        }
+        window.localStorage.removeItem(HISTORY_STORAGE_KEY);
+      }
+      const { data, error } = await supabase.from("search_history").select("*").eq("user_id", user.id).order("searched_at", { ascending: false }).limit(10);
+      if (cancelled || currentUserId !== user.id) return;
+      if (error) {
+        setSearchHistory(deviceHistory);
+        setHistoryError("Account history could not be loaded. Check that the account-history SQL migration has been run in Supabase.");
+      } else {
+        setSearchHistory((data ?? []).map(row => {
+          const item = row as SearchHistoryRow;
+          return { id: item.id, searchedAt: item.searched_at, search: item.search_data, offers: item.offers ?? [], checked: item.checked_pairs ?? 0, total: item.total_pairs ?? 0 };
+        }));
+      }
+      setHistoryReady(true);
+    };
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      currentUserId = null;
+      setUserEmail(null);
+      setHistoryStorageMode("device");
+      setSearchHistory(readDeviceHistory());
+      setHistoryReady(true);
+      return;
+    }
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => { void loadSessionHistory(session); });
+    void supabase.auth.getSession().then(({ data }) => loadSessionHistory(data.session)).catch(() => loadSessionHistory(null));
+    return () => { cancelled = true; listener.subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {
-    if (!historyReady) return;
+    if (!historyReady || historyStorageMode !== "device") return;
     try { window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(searchHistory.slice(0, 10))); }
     catch { /* Search results remain available for this page session. */ }
-  }, [historyReady, searchHistory]);
-
-  useEffect(() => {
-    const supabase = getSupabase();
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setUserEmail(data.session?.user.email ?? null));
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserEmail(session?.user.email ?? null);
-      if (session?.user.email) setAccountOpen(false);
-    });
-    return () => listener.subscription.unsubscribe();
-  }, []);
+  }, [historyReady, historyStorageMode, searchHistory]);
 
   useEffect(() => {
     if (!userEmail) { setSaved([]); return; }
@@ -404,6 +478,8 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  useEffect(() => { void loadPublicFeedback(0, false); }, []);
+
   const cheapest = useMemo(() => offers[0]?.price ?? 0, [offers]);
 
   function update<K extends keyof SearchInput>(key: K, value: SearchInput[K]) {
@@ -434,6 +510,56 @@ export default function Home() {
     return [...items].sort(compare).filter((offer, index, all) => all.findIndex(item => item.id === offer.id) === index);
   }
 
+  async function loadPublicFeedback(offset = feedbackOffset, append = true) {
+    setFeedbackLoading(true);
+    try {
+      const response = await fetch(`/api/feedback?limit=20&offset=${offset}`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not load community feedback.");
+      setPublicFeedback(current => append ? [...current, ...(data.feedback ?? [])] : (data.feedback ?? []));
+      setFeedbackHasMore(Boolean(data.hasMore));
+      setFeedbackOffset(offset + (data.feedback?.length ?? 0));
+    } catch {
+      setFeedbackNotice("Community feedback could not load. Try again in a moment.");
+    } finally { setFeedbackLoading(false); }
+  }
+
+  async function submitFeedback(event: FormEvent) {
+    event.preventDefault();
+    const message = feedbackMessage.trim();
+    if (message.length < 5) { setFeedbackNotice("Please add a little more detail (at least 5 characters)."); return; }
+    setFeedbackBusy(true);
+    setFeedbackNotice("");
+    const supabase = getSupabase();
+    if (!supabase) { setFeedbackNotice("Feedback is not connected yet. Supabase setup is required."); setFeedbackBusy(false); return; }
+    const { error: submitError } = await supabase.from("user_feedback").insert({ category: feedbackCategory, message });
+    if (submitError) setFeedbackNotice("We couldn’t send that feedback. Run the new SQL migration in Supabase, then try again.");
+    else {
+      setFeedbackMessage("");
+      setFeedbackNotice("Thank you. Your feedback is now visible on the public board below.");
+      setFeedbackOffset(0);
+      void loadPublicFeedback(0, false);
+    }
+    setFeedbackBusy(false);
+  }
+
+  async function saveAccountHistory(item: SearchHistoryItem) {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData.session?.user;
+    if (!user) return;
+    const { error: saveError } = await supabase.from("search_history").upsert({
+      user_id: user.id, id: item.id, searched_at: item.searchedAt, search_data: item.search,
+      offers: item.offers, checked_pairs: item.checked, total_pairs: item.total,
+    }, { onConflict: "user_id,id" });
+    if (saveError) {
+      setHistoryError("Could not save this search to your account. Check the Supabase account-history setup.");
+      return;
+    }
+    setHistoryError("");
+  }
+
   async function findFlights(event?: FormEvent, batch = 0) {
     event?.preventDefault();
     if (byokMode && !userEmail) {
@@ -458,22 +584,22 @@ export default function Home() {
       const response = await fetch("/api/offers", { method: "POST", headers, body: JSON.stringify({ ...search, batch }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "We couldn’t search those dates.");
-      const historyId = batch === 0 ? `${Date.now()}` : activeHistoryId || `${Date.now()}`;
+      const makeHistoryId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const historyId = batch === 0 ? makeHistoryId() : activeHistoryId || makeHistoryId();
       if (batch === 0) setActiveHistoryId(historyId);
       const mergedOffers = sortOffers(batch === 0 ? (data.offers as FlightOffer[]) : [...offers, ...(data.offers as FlightOffer[])]);
       setOffers(mergedOffers);
-      setSearchHistory(current => {
-        const existing = batch > 0 ? current.find(item => item.id === historyId) : undefined;
-        const nextItem: SearchHistoryItem = {
-          id: historyId,
-          searchedAt: existing?.searchedAt ?? new Date().toISOString(),
-          search: { ...search, advanced: { ...defaultAdvanced, ...search.advanced, airlines: [...(search.advanced?.airlines ?? [])], excludedAirports: [...(search.advanced?.excludedAirports ?? [])] } },
-          offers: mergedOffers,
-          checked: batch === 0 ? data.checked : (existing?.checked ?? checkedPairs) + data.checked,
-          total: data.totalCandidates,
-        };
-        return [nextItem, ...current.filter(item => item.id !== historyId)].slice(0, 10);
-      });
+      const existing = batch > 0 ? searchHistory.find(item => item.id === historyId) : undefined;
+      const historyItem: SearchHistoryItem = {
+        id: historyId,
+        searchedAt: existing?.searchedAt ?? new Date().toISOString(),
+        search: { ...search, advanced: { ...defaultAdvanced, ...search.advanced, airlines: [...(search.advanced?.airlines ?? [])], excludedAirports: [...(search.advanced?.excludedAirports ?? [])] } },
+        offers: mergedOffers,
+        checked: batch === 0 ? data.checked : (existing?.checked ?? checkedPairs) + data.checked,
+        total: data.totalCandidates,
+      };
+      setSearchHistory(current => [historyItem, ...current.filter(item => item.id !== historyId)].slice(0, 10));
+      if (userEmail) await saveAccountHistory(historyItem);
       setCheckedPairs(current => batch === 0 ? data.checked : current + data.checked);
       setTotalPairs(data.totalCandidates);
       setHasMoreDates(data.moreAvailable);
@@ -631,7 +757,19 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function clearSearchHistory() {
+  async function clearSearchHistory() {
+    if (historyStorageMode === "account") {
+      const supabase = getSupabase();
+      const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+      const user = data.session?.user;
+      if (!supabase || !user) { setHistoryError("Please sign in again to clear account history."); return; }
+      const { error: deleteError } = await supabase.from("search_history").delete().eq("user_id", user.id);
+      if (deleteError) { setHistoryError("Could not clear account history. Check the Supabase account-history setup."); return; }
+      setSearchHistory([]);
+      setHistoryError("");
+      setToast("Search history cleared from your account.");
+      return;
+    }
     setSearchHistory([]);
     setToast("Search history cleared on this device.");
   }
@@ -752,12 +890,26 @@ export default function Home() {
       </section>}
 
       <section className="history-section" aria-labelledby="history-heading">
-        <div className="saved-heading"><div><span className="section-kicker">ON THIS DEVICE</span><h2 id="history-heading">Recent search history</h2></div>{searchHistory.length > 0 && <button className="text-button clear-history" onClick={clearSearchHistory}>Clear history</button>}</div>
+        <div className="saved-heading"><div><span className="section-kicker">{historyStorageMode === "account" ? "YOUR ACCOUNT" : historyStorageMode === "loading" ? "LOADING SEARCH HISTORY" : "ON THIS DEVICE"}</span><h2 id="history-heading">Recent searches</h2></div>{searchHistory.length > 0 && <button className="text-button clear-history" onClick={clearSearchHistory}>Clear history</button>}</div>
+        {historyError && <div className="history-setup-error" role="status">{historyError}</div>}
         {searchHistory.length === 0 ? <div className="saved-empty">Your searches and the fares found will appear here.</div> : <div className="history-list">{searchHistory.map(item => {
           const lowest = item.offers.length ? Math.min(...item.offers.map(offer => offer.price)) : null;
           const itemCurrency = item.search.currency ?? "CAD";
           return <details className="history-item" key={item.id}><summary><span className="history-route"><strong>{item.search.origin.split(" (")[0]} <i>→</i> {item.search.destination.split(" (")[0]}</strong><small>{prettyRange(item.search.dateFrom, item.search.dateTo)} · {new Date(item.searchedAt).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></span><span className="history-summary-price">{lowest === null ? "No fares found" : `From ${formatFare(lowest, itemCurrency)}`}</span></summary><div className="history-results">{item.offers.length ? <>{item.offers.map(offer => <div className="history-result" key={offer.id}><span><strong>{prettyDate(offer.departureDate)} → {prettyDate(offer.returnDate)}</strong><small>{offer.outboundTime} outbound · {offer.outboundStops === 0 ? "Non-stop" : `${offer.outboundStops} stop${offer.outboundStops === 1 ? "" : "s"}`} · {offer.duration}</small></span><b>{formatFare(offer.price, itemCurrency)}</b></div>)}<p>Checked {item.checked} of {item.total} possible date pairs.</p></> : <p>No fares were returned for this search.</p>}<button className="history-restore" onClick={() => restoreHistory(item)}>Show this previous result</button></div></details>;
         })}</div>}
+      </section>
+
+      <section className="feedback-section" aria-labelledby="feedback-heading">
+        <div className="feedback-intro"><span className="section-kicker">COMMUNITY FEEDBACK</span><h2 id="feedback-heading">Help make Fare Glow better.</h2><p>Share an idea or tell us what isn’t working. Submissions appear publicly below, so please don’t include private or sensitive details.</p></div>
+        <form className="feedback-form" onSubmit={submitFeedback}>
+          <label className="input-block"><span>WHAT KIND OF FEEDBACK?</span><div className="input-wrap"><select value={feedbackCategory} onChange={event => setFeedbackCategory(event.target.value)}><option>Idea</option><option>Something is broken</option><option>Other</option></select></div></label>
+          <label className="input-block"><span>YOUR FEEDBACK</span><textarea value={feedbackMessage} onChange={event => setFeedbackMessage(event.target.value)} minLength={5} maxLength={2000} placeholder="Tell us what would make planning easier…" required /></label>
+          <div className="feedback-form-bottom"><small>{feedbackMessage.length}/2000 characters · visible to everyone</small><button className="search-button" type="submit" disabled={feedbackBusy}>{feedbackBusy ? "Sending…" : "Post feedback"}<ArrowIcon /></button></div>
+          {feedbackNotice && <p className="feedback-notice" role="status">{feedbackNotice}</p>}
+        </form>
+        <div className="feedback-board-heading"><h3>Recent feedback</h3><span>Public community board · {publicFeedback.length} shown</span></div>
+        {publicFeedback.length === 0 && !feedbackLoading ? <div className="saved-empty">{feedbackNotice.includes("could not load") ? "The feedback board is temporarily unavailable." : "No feedback yet. You can be the first to share an idea."}</div> : <div className="public-feedback-list">{publicFeedback.map(item => <article className="public-feedback-item" key={item.id}><div><span className="feedback-category">{item.category}</span><time dateTime={item.created_at}>{new Date(item.created_at).toLocaleDateString("en-CA", { month: "short", day: "numeric", year: "numeric" })}</time></div><p>{item.message}</p></article>)}</div>}
+        {feedbackHasMore && <button className="load-feedback" type="button" disabled={feedbackLoading} onClick={() => loadPublicFeedback()}>{feedbackLoading ? "Loading…" : "Show more feedback"}</button>}
       </section>
 
       <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-api-usage">SerpApi requests left this month: <strong>{usageRemaining === null ? "run a search to check" : usageRemaining}</strong>{usageKeySource && <small> · using {usageKeySource}</small>}</span><span className="footer-country">Made for Canadian travellers · {search.currency}</span><span className="footer-credit">Dileep Kodira App</span></footer>
