@@ -29,6 +29,154 @@ const tripLengthOptions = [
   }),
 ];
 
+const airportOptions = [
+  { city: "Toronto", name: "Toronto Pearson International", code: "YYZ", country: "Canada" },
+  { city: "Toronto", name: "Billy Bishop Toronto City", code: "YTZ", country: "Canada" },
+  { city: "Vancouver", name: "Vancouver International", code: "YVR", country: "Canada" },
+  { city: "Montréal", name: "Montréal–Trudeau International", code: "YUL", country: "Canada" },
+  { city: "Calgary", name: "Calgary International", code: "YYC", country: "Canada" },
+  { city: "Edmonton", name: "Edmonton International", code: "YEG", country: "Canada" },
+  { city: "Ottawa", name: "Ottawa International", code: "YOW", country: "Canada" },
+  { city: "Winnipeg", name: "Winnipeg Richardson International", code: "YWG", country: "Canada" },
+  { city: "Halifax", name: "Halifax Stanfield International", code: "YHZ", country: "Canada" },
+  { city: "Québec City", name: "Québec City Jean Lesage International", code: "YQB", country: "Canada" },
+  { city: "Victoria", name: "Victoria International", code: "YYJ", country: "Canada" },
+  { city: "Kelowna", name: "Kelowna International", code: "YLW", country: "Canada" },
+  { city: "Abbotsford", name: "Abbotsford International", code: "YXX", country: "Canada" },
+  { city: "Hamilton", name: "John C. Munro Hamilton International", code: "YHM", country: "Canada" },
+  { city: "Waterloo", name: "Region of Waterloo International", code: "YKF", country: "Canada" },
+  { city: "London, Ontario", name: "London International", code: "YXU", country: "Canada" },
+  { city: "Saskatoon", name: "Saskatoon John G. Diefenbaker International", code: "YXE", country: "Canada" },
+  { city: "Regina", name: "Regina International", code: "YQR", country: "Canada" },
+  { city: "St. John's", name: "St. John's International", code: "YYT", country: "Canada" },
+  { city: "Moncton", name: "Greater Moncton Roméo LeBlanc International", code: "YQM", country: "Canada" },
+  { city: "Fredericton", name: "Fredericton International", code: "YFC", country: "Canada" },
+  { city: "Saint John", name: "Saint John Airport", code: "YSJ", country: "Canada" },
+  { city: "Thunder Bay", name: "Thunder Bay International", code: "YQT", country: "Canada" },
+  { city: "Charlottetown", name: "Charlottetown Airport", code: "YYG", country: "Canada" },
+  { city: "Gander", name: "Gander International", code: "YQX", country: "Canada" },
+  { city: "Deer Lake", name: "Deer Lake Regional", code: "YDF", country: "Canada" },
+  { city: "Yellowknife", name: "Yellowknife Airport", code: "YZF", country: "Canada" },
+  { city: "Whitehorse", name: "Erik Nielsen Whitehorse International", code: "YXY", country: "Canada" },
+  { city: "Iqaluit", name: "Iqaluit Airport", code: "YFB", country: "Canada" },
+  { city: "Prince George", name: "Prince George Airport", code: "YXS", country: "Canada" },
+  { city: "New York", name: "John F. Kennedy International", code: "JFK", country: "United States" },
+  { city: "New York", name: "Newark Liberty International", code: "EWR", country: "United States" },
+  { city: "New York", name: "LaGuardia Airport", code: "LGA", country: "United States" },
+  { city: "Boston", name: "Logan International", code: "BOS", country: "United States" },
+  { city: "Chicago", name: "O'Hare International", code: "ORD", country: "United States" },
+  { city: "Los Angeles", name: "Los Angeles International", code: "LAX", country: "United States" },
+  { city: "San Francisco", name: "San Francisco International", code: "SFO", country: "United States" },
+  { city: "Seattle", name: "Seattle–Tacoma International", code: "SEA", country: "United States" },
+  { city: "Las Vegas", name: "Harry Reid International", code: "LAS", country: "United States" },
+  { city: "Orlando", name: "Orlando International", code: "MCO", country: "United States" },
+  { city: "Miami", name: "Miami International", code: "MIA", country: "United States" },
+  { city: "Atlanta", name: "Hartsfield–Jackson Atlanta International", code: "ATL", country: "United States" },
+  { city: "Dallas", name: "Dallas Fort Worth International", code: "DFW", country: "United States" },
+  { city: "Denver", name: "Denver International", code: "DEN", country: "United States" },
+  { city: "London", name: "Heathrow Airport", code: "LHR", country: "United Kingdom" },
+  { city: "London", name: "Gatwick Airport", code: "LGW", country: "United Kingdom" },
+  { city: "Paris", name: "Charles de Gaulle Airport", code: "CDG", country: "France" },
+  { city: "Amsterdam", name: "Amsterdam Airport Schiphol", code: "AMS", country: "Netherlands" },
+  { city: "Rome", name: "Leonardo da Vinci–Fiumicino Airport", code: "FCO", country: "Italy" },
+  { city: "Lisbon", name: "Humberto Delgado Airport", code: "LIS", country: "Portugal" },
+  { city: "Dubai", name: "Dubai International", code: "DXB", country: "United Arab Emirates" },
+  { city: "Tokyo", name: "Haneda Airport", code: "HND", country: "Japan" },
+  { city: "Tokyo", name: "Narita International", code: "NRT", country: "Japan" },
+  { city: "Seoul", name: "Incheon International", code: "ICN", country: "South Korea" },
+  { city: "Singapore", name: "Changi Airport", code: "SIN", country: "Singapore" },
+  { city: "Bangkok", name: "Suvarnabhumi Airport", code: "BKK", country: "Thailand" },
+  { city: "Sydney", name: "Sydney Kingsford Smith Airport", code: "SYD", country: "Australia" },
+  { city: "Auckland", name: "Auckland Airport", code: "AKL", country: "New Zealand" },
+  { city: "Cancún", name: "Cancún International", code: "CUN", country: "Mexico" },
+  { city: "Mexico City", name: "Mexico City International", code: "MEX", country: "Mexico" },
+];
+
+function normalizeAirportSearch(value: string) {
+  return value.toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
+  label: string;
+  field: "origin" | "destination";
+  value: string;
+  onChange: (value: string) => void;
+  symbol: string;
+  symbolClass: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const query = normalizeAirportSearch(value);
+  const queryParts = query.split(/\s+/).filter(Boolean);
+  const matches = query ? airportOptions
+    .filter(airport => {
+      const haystack = normalizeAirportSearch(`${airport.city} ${airport.name} ${airport.code} ${airport.country}`);
+      return queryParts.every(part => haystack.includes(part));
+    })
+    .sort((a, b) => {
+      const rank = (airport: typeof airportOptions[number]) => {
+        const code = normalizeAirportSearch(airport.code);
+        const city = normalizeAirportSearch(airport.city);
+        if (code === query) return 0;
+        if (city.startsWith(query)) return 1;
+        if (normalizeAirportSearch(airport.name).startsWith(query)) return 2;
+        return 3;
+      };
+      return rank(a) - rank(b);
+    }).slice(0, 6) : [];
+  const listId = `airport-suggestions-${field}`;
+
+  function chooseAirport(airport: typeof airportOptions[number]) {
+    onChange(`${airport.city} (${airport.code})`);
+    setOpen(false);
+    setActiveIndex(-1);
+  }
+
+  return <div className="input-block airport-field">
+    <span>{label}</span>
+    <div className="airport-autocomplete">
+      <div className="input-wrap">
+        <span className={`field-symbol ${symbolClass}`} aria-hidden="true">{symbol}</span>
+        <input
+          aria-label={`${label === "FROM" ? "Departure" : "Destination"} city or airport`}
+          aria-autocomplete="list"
+          aria-expanded={open && query.length > 0}
+          aria-controls={listId}
+          aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${matches[activeIndex]?.code}` : undefined}
+          role="combobox"
+          autoComplete="off"
+          value={value}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onChange={event => { onChange(event.target.value); setOpen(true); setActiveIndex(-1); }}
+          onKeyDown={event => {
+            if (event.key === "ArrowDown" && matches.length) { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.min(index + 1, matches.length - 1)); }
+            if (event.key === "ArrowUp" && matches.length) { event.preventDefault(); setActiveIndex(index => Math.max(index - 1, 0)); }
+            if (event.key === "Enter" && open && matches.length) { event.preventDefault(); chooseAirport(matches[activeIndex >= 0 ? activeIndex : 0]); }
+            if (event.key === "Escape") setOpen(false);
+          }}
+          placeholder="Type a city, airport, or code"
+          required
+        />
+      </div>
+      {open && query && <div className="airport-suggestions" id={listId} role="listbox" aria-label={`${label === "FROM" ? "Departure" : "Destination"} airports`}>
+        {matches.length ? matches.map((airport, index) => <div
+          className={`airport-suggestion${index === activeIndex ? " is-active" : ""}`}
+          id={`${listId}-${airport.code}`}
+          key={airport.code}
+          role="option"
+          aria-selected={index === activeIndex}
+          onPointerDown={event => event.preventDefault()}
+          onClick={() => chooseAirport(airport)}
+        >
+          <span className="airport-suggestion-main"><strong>{airport.city}</strong><small>{airport.name} · {airport.country}</small></span>
+          <b className="airport-suggestion-code">{airport.code}</b>
+        </div>) : <div className="airport-no-results">No match yet. Try a city or 3-letter airport code.</div>}
+      </div>}
+    </div>
+  </div>;
+}
+
 function CalendarIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 10h18"/><path d="m8 15 2 2 5-5"/></svg>;
 }
@@ -338,9 +486,9 @@ export default function Home() {
         </div>
         <form onSubmit={findFlights}>
           <div className="route-fields">
-            <label className="input-block"><span>FROM</span><div className="input-wrap"><span className="field-symbol origin-symbol">●</span><input aria-label="From city or airport" value={search.origin} onChange={e => update("origin", e.target.value)} placeholder="City (airport code)" required /></div></label>
+            <AirportInput label="FROM" field="origin" value={search.origin} onChange={value => update("origin", value)} symbol="●" symbolClass="origin-symbol" />
             <button className="swap-button" type="button" onClick={swapRoute} aria-label="Swap origin and destination">⇄</button>
-            <label className="input-block"><span>TO</span><div className="input-wrap"><span className="field-symbol destination-symbol">◎</span><input aria-label="To city or airport" value={search.destination} onChange={e => update("destination", e.target.value)} placeholder="City (airport code)" required /></div></label>
+            <AirportInput label="TO" field="destination" value={search.destination} onChange={value => update("destination", value)} symbol="◎" symbolClass="destination-symbol" />
           </div>
           <div className="range-row">
             <label className="input-block"><span>YOU CAN TRAVEL BETWEEN</span><div className="input-wrap date-input"><CalendarIcon /><input aria-label="Earliest travel date" type="date" min={iso(today)} value={search.dateFrom} onChange={e => update("dateFrom", e.target.value)} required /><span className="date-divider">and</span><input aria-label="Latest travel date" type="date" value={search.dateTo} min={search.dateFrom} onChange={e => update("dateTo", e.target.value)} required /></div></label>
