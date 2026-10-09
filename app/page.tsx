@@ -5,13 +5,15 @@ import { getSupabase, hasSupabaseConfig } from "@/lib/supabase";
 import type { AdvancedFilters, FlightOffer, SearchInput } from "@/lib/types";
 
 type SavedSearch = { id: string; origin: string; destination: string; date_from: string; date_to: string; min_nights: number; max_nights: number; travellers: number };
+type SearchHistoryItem = { id: string; searchedAt: string; search: SearchInput; offers: FlightOffer[]; checked: number; total: number };
+const HISTORY_STORAGE_KEY = "fare-glow-search-history-v1";
 
 const today = new Date();
 const addDays = (date: Date, count: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + count);
 const iso = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const defaultSearch: SearchInput = {
-  origin: "Toronto (YYZ)",
-  destination: "Vancouver (YVR)",
+  origin: "",
+  destination: "",
   dateFrom: iso(addDays(today, 28)),
   dateTo: iso(addDays(today, 70)),
   minNights: 3,
@@ -220,6 +222,10 @@ function tripDaysInclusive(from: string, to: string) {
 export default function Home() {
   const [search, setSearch] = useState<SearchInput>(defaultSearch);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [airlineQuery, setAirlineQuery] = useState("");
+  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
+  const [historyReady, setHistoryReady] = useState(false);
+  const [activeHistoryId, setActiveHistoryId] = useState("");
   const [offers, setOffers] = useState<FlightOffer[]>([]);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -245,6 +251,23 @@ export default function Home() {
   const [providerKeyBusy, setProviderKeyBusy] = useState(false);
   const supabaseReady = hasSupabaseConfig();
   const byokMode = process.env.NEXT_PUBLIC_SERPAPI_KEY_MODE === "byok";
+
+  useEffect(() => {
+    try {
+      const savedHistory = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+      if (savedHistory) {
+        const parsed = JSON.parse(savedHistory);
+        if (Array.isArray(parsed)) setSearchHistory(parsed.slice(0, 10));
+      }
+    } catch { /* Ignore unavailable or invalid local history. */ }
+    setHistoryReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!historyReady) return;
+    try { window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(searchHistory.slice(0, 10))); }
+    catch { /* Search results remain available for this page session. */ }
+  }, [historyReady, searchHistory]);
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -308,6 +331,16 @@ export default function Home() {
     setSearch(current => ({ ...current, advanced: { ...defaultAdvanced, ...current.advanced, [key]: value } }));
   }
 
+  function sortOffers(items: FlightOffer[]) {
+    const sortBy = search.advanced?.sortBy ?? 2;
+    const compare = (a: FlightOffer, b: FlightOffer) => sortBy === 3 ? a.departureDate.localeCompare(b.departureDate) || clockMinutes(a.outboundTime) - clockMinutes(b.outboundTime)
+      : sortBy === 4 ? a.departureDate.localeCompare(b.departureDate) || clockMinutes(a.arrivalTime ?? "") - clockMinutes(b.arrivalTime ?? "")
+      : sortBy === 5 ? (a.durationMinutes ?? Infinity) - (b.durationMinutes ?? Infinity)
+      : sortBy === 6 ? (a.emissionsGrams ?? Infinity) - (b.emissionsGrams ?? Infinity)
+      : sortBy === 1 ? 0 : a.price - b.price;
+    return [...items].sort(compare).filter((offer, index, all) => all.findIndex(item => item.id === offer.id) === index);
+  }
+
   async function findFlights(event?: FormEvent, batch = 0) {
     event?.preventDefault();
     if (byokMode && !userEmail) {
@@ -332,15 +365,21 @@ export default function Home() {
       const response = await fetch("/api/offers", { method: "POST", headers, body: JSON.stringify({ ...search, batch }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "We couldn’t search those dates.");
-      setOffers(current => {
-        const merged = batch === 0 ? data.offers as FlightOffer[] : [...current, ...data.offers as FlightOffer[]];
-        const sortBy = search.advanced?.sortBy ?? 2;
-        const sortOffers = (a: FlightOffer, b: FlightOffer) => sortBy === 3 ? a.departureDate.localeCompare(b.departureDate) || clockMinutes(a.outboundTime) - clockMinutes(b.outboundTime)
-          : sortBy === 4 ? a.departureDate.localeCompare(b.departureDate) || clockMinutes(a.arrivalTime ?? "") - clockMinutes(b.arrivalTime ?? "")
-          : sortBy === 5 ? (a.durationMinutes ?? Infinity) - (b.durationMinutes ?? Infinity)
-          : sortBy === 6 ? (a.emissionsGrams ?? Infinity) - (b.emissionsGrams ?? Infinity)
-          : sortBy === 1 ? 0 : a.price - b.price;
-        return merged.sort(sortOffers).filter((offer, index, all) => all.findIndex(item => item.id === offer.id) === index);
+      const historyId = batch === 0 ? `${Date.now()}` : activeHistoryId || `${Date.now()}`;
+      if (batch === 0) setActiveHistoryId(historyId);
+      const mergedOffers = sortOffers(batch === 0 ? (data.offers as FlightOffer[]) : [...offers, ...(data.offers as FlightOffer[])]);
+      setOffers(mergedOffers);
+      setSearchHistory(current => {
+        const existing = batch > 0 ? current.find(item => item.id === historyId) : undefined;
+        const nextItem: SearchHistoryItem = {
+          id: historyId,
+          searchedAt: existing?.searchedAt ?? new Date().toISOString(),
+          search: { ...search, advanced: { ...defaultAdvanced, ...search.advanced, airlines: [...(search.advanced?.airlines ?? [])], excludedAirports: [...(search.advanced?.excludedAirports ?? [])] } },
+          offers: mergedOffers,
+          checked: batch === 0 ? data.checked : (existing?.checked ?? checkedPairs) + data.checked,
+          total: data.totalCandidates,
+        };
+        return [nextItem, ...current.filter(item => item.id !== historyId)].slice(0, 10);
       });
       setCheckedPairs(current => batch === 0 ? data.checked : current + data.checked);
       setTotalPairs(data.totalCandidates);
@@ -463,6 +502,23 @@ export default function Home() {
     setToast("Search details restored. Search again for current prices.");
   }
 
+  function restoreHistory(item: SearchHistoryItem) {
+    setSearch(item.search);
+    setOffers(item.offers);
+    setCheckedPairs(item.checked);
+    setTotalPairs(item.total);
+    setSearched(true);
+    setHasMoreDates(false);
+    setError("");
+    setAdvancedOpen(Boolean(item.search.advanced && (item.search.advanced.airlineMode !== "any" || item.search.advanced.carryOn || item.search.advanced.stops !== "any" || item.search.advanced.cabin !== 1 || item.search.advanced.maxPrice || item.search.advanced.lowEmissions)));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function clearSearchHistory() {
+    setSearchHistory([]);
+    setToast("Search history cleared on this device.");
+  }
+
   function swapRoute() {
     setSearch(current => ({ ...current, origin: current.destination, destination: current.origin }));
   }
@@ -502,7 +558,7 @@ export default function Home() {
             <AirportInput label="TO" field="destination" value={search.destination} onChange={value => update("destination", value)} symbol="◎" symbolClass="destination-symbol" />
           </div>
           <div className="range-row">
-            <label className="input-block"><span>YOU CAN TRAVEL BETWEEN</span><div className="input-wrap date-input"><CalendarIcon /><input aria-label="Earliest travel date" type="date" min={iso(today)} value={search.dateFrom} onChange={e => update("dateFrom", e.target.value)} required /><span className="date-divider">and</span><input aria-label="Latest travel date" type="date" value={search.dateTo} min={search.dateFrom} onChange={e => update("dateTo", e.target.value)} required /></div></label>
+            <div className="input-block"><span>CHOOSE YOUR TRAVEL DATE WINDOW</span><div className="date-range-picker"><CalendarIcon /><div className="date-range-fields"><label className="date-field"><span>Earliest date</span><input aria-label="Earliest travel date" type="date" min={iso(today)} value={search.dateFrom} onChange={e => update("dateFrom", e.target.value)} required /></label><label className="date-field"><span>Latest date</span><input aria-label="Latest travel date" type="date" value={search.dateTo} min={search.dateFrom} onChange={e => update("dateTo", e.target.value)} required /></label></div></div></div>
             <label className="input-block nights-block"><span>TRIP LENGTH · DAYS INCLUDING DEPARTURE</span><div className="input-wrap nights-input"><select aria-label="Minimum trip length in days including departure" value={search.minNights} onChange={e => update("minNights", Number(e.target.value))}>{tripLengthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select><span className="date-divider">to</span><select aria-label="Maximum trip length in days including departure" value={search.maxNights} onChange={e => update("maxNights", Number(e.target.value))}>{tripLengthOptions.filter(option => option.value >= search.minNights).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div></label>
             <label className="input-block traveller-block"><span>TRAVELERS</span><div className="input-wrap traveller-input"><select aria-label="Number of travelers" value={search.travellers} onChange={e => update("travellers", Number(e.target.value))}>{[1,2,3,4,5,6,7,8,9].map(n => <option value={n} key={n}>{n} {n === 1 ? "adult" : "adults"}</option>)}</select></div></label>
           </div>
@@ -514,7 +570,7 @@ export default function Home() {
               <div className="advanced-grid">
                 <label className="input-block"><span>STOPS · EACH DIRECTION</span><div className="input-wrap"><select value={search.advanced?.stops ?? "any"} onChange={e => updateAdvanced("stops", e.target.value as AdvancedFilters["stops"])}><option value="any">Any number of stops</option><option value="nonstop">Nonstop only</option><option value="one">1 stop or fewer</option><option value="two">2 stops or fewer</option></select></div><small className="field-help">“1 stop or fewer” includes nonstop flights.</small></label>
                 <label className="input-block"><span>CARRY-ON BAGS</span><div className="input-wrap"><select value={search.advanced?.carryOn ?? 0} onChange={e => updateAdvanced("carryOn", Number(e.target.value))}><option value="0">No preference</option><option value="1">At least 1 carry-on</option><option value="2">At least 2 carry-ons</option></select></div><small className="field-help">Carry-on bags only; checked bags aren’t filterable here.</small></label>
-                <label className="input-block"><span>AIRLINE PREFERENCE</span><div className="input-wrap"><select value={search.advanced?.airlineMode ?? "any"} onChange={e => updateAdvanced("airlineMode", e.target.value as AdvancedFilters["airlineMode"])}><option value="any">Any airline</option><option value="include">Only airlines I choose</option><option value="exclude">Avoid airlines I choose</option></select></div></label>
+                <div className="input-block airline-filter-field"><span>AIRLINE PREFERENCE</span><div className="input-wrap"><select aria-label="Airline preference" value={search.advanced?.airlineMode ?? "any"} onChange={e => { updateAdvanced("airlineMode", e.target.value as AdvancedFilters["airlineMode"]); setAirlineQuery(""); }}><option value="any">Any airline</option><option value="include">Only airlines I choose</option><option value="exclude">Avoid airlines I choose</option></select></div>{search.advanced?.airlineMode !== "any" && <fieldset className="airline-picker"><legend>{search.advanced?.airlineMode === "include" ? "Choose airlines to include" : "Choose airlines to avoid"}</legend><input className="airline-search" type="search" aria-label="Search airlines" placeholder="Search airline name or code" value={airlineQuery} onChange={e => setAirlineQuery(e.target.value)} /><div className="airline-choice-list">{airlineOptions.filter(([code, name]) => `${code} ${name}`.toLowerCase().includes(airlineQuery.toLowerCase())).map(([code,name]) => <label key={code}><input type="checkbox" checked={search.advanced?.airlines.includes(code) ?? false} onChange={e => updateAdvanced("airlines", e.target.checked ? [...(search.advanced?.airlines ?? []), code] : (search.advanced?.airlines ?? []).filter(item => item !== code))} /><span>{name}</span><small>{code}</small></label>)}</div><small className="airline-selected">{search.advanced?.airlines.length ? `${search.advanced.airlines.length} selected` : "Choose one or more airlines"}</small></fieldset>}</div>
                 <label className="input-block"><span>MAXIMUM TOTAL FARE · CAD</span><div className="input-wrap"><span className="field-symbol">$</span><input type="number" min="1" max="50000" placeholder="No price limit" value={search.advanced?.maxPrice ?? ""} onChange={e => updateAdvanced("maxPrice", e.target.value)} /></div></label>
                 <label className="input-block"><span>OUTBOUND DEPARTURE TIME</span><div className="input-wrap"><select value={search.advanced?.outboundTime ?? ""} onChange={e => updateAdvanced("outboundTime", e.target.value)}>{timeOptions.map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></div></label>
                 <label className="input-block"><span>RETURN DEPARTURE TIME</span><div className="input-wrap"><select value={search.advanced?.returnTime ?? ""} onChange={e => updateAdvanced("returnTime", e.target.value)}>{timeOptions.map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></div></label>
@@ -523,7 +579,6 @@ export default function Home() {
                 <label className="input-block"><span>TRAVEL CABIN</span><div className="input-wrap"><select value={search.advanced?.cabin ?? 1} onChange={e => updateAdvanced("cabin", Number(e.target.value))}><option value="1">Economy</option><option value="2">Premium economy</option><option value="3">Business</option><option value="4">First class</option></select></div></label>
                 <label className="input-block"><span>SHOW OFFERS SORTED BY</span><div className="input-wrap"><select value={search.advanced?.sortBy ?? 2} onChange={e => updateAdvanced("sortBy", Number(e.target.value))}><option value="1">Recommended</option><option value="2">Lowest price</option><option value="3">Earliest departure</option><option value="4">Earliest arrival</option><option value="5">Shortest flight time</option><option value="6">Lowest emissions</option></select></div></label>
               </div>
-              {search.advanced?.airlineMode !== "any" && <fieldset className="choice-group"><legend>{search.advanced?.airlineMode === "include" ? "Choose airlines to include" : "Choose airlines to avoid"}</legend><div className="choice-list">{airlineOptions.map(([code,name]) => <label key={code}><input type="checkbox" checked={search.advanced?.airlines.includes(code) ?? false} onChange={e => updateAdvanced("airlines", e.target.checked ? [...(search.advanced?.airlines ?? []), code] : (search.advanced?.airlines ?? []).filter(item => item !== code))} /><span>{name}</span></label>)}</div></fieldset>}
               <details className="airport-exclusions"><summary>Avoid specific connection airports <small>Optional · choose any airports</small></summary><div className="choice-list">{airportOptions.map(airport => <label key={airport.code}><input type="checkbox" checked={search.advanced?.excludedAirports.includes(airport.code) ?? false} onChange={e => updateAdvanced("excludedAirports", e.target.checked ? [...(search.advanced?.excludedAirports ?? []), airport.code] : (search.advanced?.excludedAirports ?? []).filter(code => code !== airport.code))} /><span>{airport.city} ({airport.code})</span></label>)}</div></details>
               <label className="advanced-check"><input type="checkbox" checked={search.advanced?.lowEmissions ?? false} onChange={e => updateAdvanced("lowEmissions", e.target.checked)} /><span><strong>Show lower-emissions flights</strong><small>Filter for flights Google classifies as lower emissions on this route.</small></span></label>
               <p className="canada-note">Basic Economy exclusion isn’t available for Canada market searches through this fare provider.</p>
@@ -564,9 +619,17 @@ export default function Home() {
         {saved.length === 0 ? <div className="saved-empty">Save a route and date window to find it here again.</div> : <div className="saved-list">{saved.map(item => <div className="saved-item" key={item.id}><button className="saved-restore" onClick={() => restoreSearch(item)}><span>{item.origin.split(" (")[0]} <i>→</i> {item.destination.split(" (")[0]}</span><small>{prettyRange(item.date_from, item.date_to)} · round trip</small></button><button className="delete-saved" onClick={() => removeSaved(item.id)} aria-label="Delete saved search">×</button></div>)}</div>}
       </section>}
 
+      <section className="history-section" aria-labelledby="history-heading">
+        <div className="saved-heading"><div><span className="section-kicker">ON THIS DEVICE</span><h2 id="history-heading">Recent search history</h2></div>{searchHistory.length > 0 && <button className="text-button clear-history" onClick={clearSearchHistory}>Clear history</button>}</div>
+        {searchHistory.length === 0 ? <div className="saved-empty">Your searches and the fares found will appear here.</div> : <div className="history-list">{searchHistory.map(item => {
+          const lowest = item.offers.length ? Math.min(...item.offers.map(offer => offer.price)) : null;
+          return <details className="history-item" key={item.id}><summary><span className="history-route"><strong>{item.search.origin.split(" (")[0]} <i>→</i> {item.search.destination.split(" (")[0]}</strong><small>{prettyRange(item.search.dateFrom, item.search.dateTo)} · {new Date(item.searchedAt).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></span><span className="history-summary-price">{lowest === null ? "No fares found" : `From $${lowest} CAD`}</span></summary><div className="history-results">{item.offers.length ? <>{item.offers.map(offer => <div className="history-result" key={offer.id}><span><strong>{prettyDate(offer.departureDate)} → {prettyDate(offer.returnDate)}</strong><small>{offer.outboundTime} outbound · {offer.outboundStops === 0 ? "Non-stop" : `${offer.outboundStops} stop${offer.outboundStops === 1 ? "" : "s"}`} · {offer.duration}</small></span><b>${offer.price} <small>CAD</small></b></div>)}<p>Checked {item.checked} of {item.total} possible date pairs.</p></> : <p>No fares were returned for this search.</p>}<button className="history-restore" onClick={() => restoreHistory(item)}>Show this previous result</button></div></details>;
+        })}</div>}
+      </section>
+
       <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-country">Made for Canadian travellers · CAD</span></footer>
 
-      {accountOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAccountOpen(false); }}><section className="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title"><button className="modal-close" onClick={() => setAccountOpen(false)} aria-label="Close">×</button><span className="modal-mark"><SparkIcon /></span><span className="section-kicker">FARE GLOW ACCOUNT</span><h2 id="account-title">Keep your dates close.</h2><p>Sign in to save searches and set fare alert preferences.</p>
+      {accountOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAccountOpen(false); }}><section className="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title"><button className="modal-close" onClick={() => setAccountOpen(false)} aria-label="Close">×</button><span className="modal-mark"><SparkIcon /></span><span className="section-kicker">FARE GLOW ACCOUNT</span><h2 id="account-title">Keep your dates close.</h2><p>Sign in to save searches to your account.</p>
         {supabaseReady ? <form onSubmit={signIn}><label className="input-block"><span>EMAIL ADDRESS</span><div className="input-wrap"><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required /></div></label><button className="search-button modal-submit" type="submit" disabled={accountBusy}>{accountBusy ? "Sending link…" : "Email me a sign-in link"}<ArrowIcon /></button></form> : <div className="setup-note"><strong>Account connection needed</strong><span>Supabase account details are not set up yet. The setup guide explains how to switch on sign-in and saved searches.</span></div>}
         {accountMessage && <p className="account-message" role="status">{accountMessage}</p>}<small className="privacy-note">A password isn’t needed. We’ll send a secure one-time link.</small>
       </section></div>}
