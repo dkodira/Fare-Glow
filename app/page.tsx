@@ -2,7 +2,7 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { getSupabase, hasSupabaseConfig } from "@/lib/supabase";
-import type { AdvancedFilters, FlightOffer, SearchInput } from "@/lib/types";
+import { FARE_CURRENCIES, type AdvancedFilters, type FareCurrency, type FlightOffer, type SearchInput } from "@/lib/types";
 
 type SavedSearch = { id: string; origin: string; destination: string; date_from: string; date_to: string; min_nights: number; max_nights: number; travellers: number };
 type SearchHistoryItem = { id: string; searchedAt: string; search: SearchInput; offers: FlightOffer[]; checked: number; total: number };
@@ -22,6 +22,7 @@ const iso = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1)
 const defaultSearch: SearchInput = {
   origin: "",
   destination: "",
+  currency: "CAD",
   dateFrom: iso(addDays(today, 28)),
   dateTo: iso(addDays(today, 70)),
   minNights: 3,
@@ -254,6 +255,10 @@ function prettyDate(value: string) {
   return new Date(`${value}T12:00:00`).toLocaleDateString("en-CA", { month: "short", day: "numeric" });
 }
 
+function formatFare(amount: number, currency: FareCurrency) {
+  return `${currency} ${new Intl.NumberFormat("en-CA", { maximumFractionDigits: 0 }).format(amount)}`;
+}
+
 function prettyRange(from: string, to: string) {
   const start = new Date(`${from}T12:00:00`);
   const end = new Date(`${to}T12:00:00`);
@@ -412,6 +417,11 @@ export default function Home() {
 
   function updateAdvanced<K extends keyof AdvancedFilters>(key: K, value: AdvancedFilters[K]) {
     setSearch(current => ({ ...current, advanced: { ...defaultAdvanced, ...current.advanced, [key]: value } }));
+  }
+
+  function updateCurrency(currency: FareCurrency) {
+    setSearch(current => ({ ...current, currency, advanced: { ...defaultAdvanced, ...current.advanced, maxPrice: "" } }));
+    setOffers([]); setSearched(false); setError(""); setHasMoreDates(false); setCheckedPairs(0); setTotalPairs(0); setNextBatch(0); setActiveHistoryId("");
   }
 
   function sortOffers(items: FlightOffer[]) {
@@ -604,13 +614,13 @@ export default function Home() {
   }
 
   function restoreSearch(item: SavedSearch) {
-    setSearch({ origin: item.origin, destination: item.destination, dateFrom: item.date_from, dateTo: item.date_to, minNights: item.min_nights, maxNights: item.max_nights, travellers: item.travellers });
+    setSearch(current => ({ origin: item.origin, destination: item.destination, currency: current.currency, dateFrom: item.date_from, dateTo: item.date_to, minNights: item.min_nights, maxNights: item.max_nights, travellers: item.travellers }));
     window.scrollTo({ top: 0, behavior: "smooth" });
     setToast("Search details restored. Search again for current prices.");
   }
 
   function restoreHistory(item: SearchHistoryItem) {
-    setSearch(item.search);
+    setSearch({ ...item.search, currency: item.search.currency ?? "CAD" });
     setOffers(item.offers);
     setCheckedPairs(item.checked);
     setTotalPairs(item.total);
@@ -637,7 +647,7 @@ export default function Home() {
           <span className="brand-mark"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span>
         </a>
         <div className="top-actions">
-          <span className="market-pill"><span className="flag">CA</span> Canada · CAD</span>
+          <span className="market-pill"><span className="flag">CA</span> Canada · {search.currency}</span>
           {userEmail ? <div className="account-menu"><span className="user-dot">{userEmail.slice(0, 1).toUpperCase()}</span><button className="text-button" onClick={openProviderKeySettings}>API key</button><button className="text-button" onClick={signOut}>Sign out</button></div> : <button className="sign-in" onClick={() => { setAccountMessage(""); setAccountOpen(true); }}>Sign in <span>↗</span></button>}
         </div>
       </header>
@@ -679,6 +689,10 @@ export default function Home() {
             <label className="input-block nights-block"><span>TRIP LENGTH · DAYS INCLUDING DEPARTURE</span><div className="input-wrap nights-input"><select aria-label="Minimum trip length in days including departure" value={search.minNights} onChange={e => update("minNights", Number(e.target.value))}>{tripLengthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select><span className="date-divider">to</span><select aria-label="Maximum trip length in days including departure" value={search.maxNights} onChange={e => update("maxNights", Number(e.target.value))}>{tripLengthOptions.filter(option => option.value >= search.minNights).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div></label>
             <label className="input-block traveller-block"><span>TRAVELERS</span><div className="input-wrap traveller-input"><select aria-label="Number of travelers" value={search.travellers} onChange={e => update("travellers", Number(e.target.value))}>{[1,2,3,4,5,6,7,8,9].map(n => <option value={n} key={n}>{n} {n === 1 ? "adult" : "adults"}</option>)}</select></div></label>
           </div>
+          <div className="currency-row">
+            <label className="input-block"><span>FARE CURRENCY</span><div className="input-wrap"><select aria-label="Fare currency" value={search.currency} disabled={loading} onChange={e => updateCurrency(e.target.value as FareCurrency)}>{FARE_CURRENCIES.map(currency => <option value={currency.code} key={currency.code}>{currency.code} — {currency.name}</option>)}</select></div></label>
+            <small>Changing currency clears current results; search again for new fares. Confirm the final price when booking.</small>
+          </div>
           <section className="advanced-search" aria-label="Advanced flight options">
             <button className="advanced-toggle" type="button" aria-expanded={advancedOpen} onClick={() => setAdvancedOpen(open => !open)}>
               <span><strong>Advanced search</strong><small>Stops, airlines, bags, times, and more</small></span><span className="advanced-toggle-right">{advancedOpen ? "Hide options" : "Show options"} <b>{advancedOpen ? "−" : "+"}</b></span>
@@ -688,7 +702,7 @@ export default function Home() {
                 <label className="input-block"><span>STOPS · EACH DIRECTION</span><div className="input-wrap"><select value={search.advanced?.stops ?? "any"} onChange={e => updateAdvanced("stops", e.target.value as AdvancedFilters["stops"])}><option value="any">Any number of stops</option><option value="nonstop">Nonstop only</option><option value="one">1 stop or fewer</option><option value="two">2 stops or fewer</option></select></div><small className="field-help">“1 stop or fewer” includes nonstop flights.</small></label>
                 <label className="input-block"><span>CARRY-ON BAGS</span><div className="input-wrap"><select value={search.advanced?.carryOn ?? 0} onChange={e => updateAdvanced("carryOn", Number(e.target.value))}><option value="0">No preference</option><option value="1">At least 1 carry-on</option><option value="2">At least 2 carry-ons</option></select></div><small className="field-help">Carry-on bags only; checked bags aren’t filterable here.</small></label>
                 <div className="input-block airline-filter-field"><span>AIRLINE PREFERENCE</span><div className="input-wrap"><select aria-label="Airline preference" value={search.advanced?.airlineMode ?? "any"} onChange={e => { updateAdvanced("airlineMode", e.target.value as AdvancedFilters["airlineMode"]); setAirlineQuery(""); }}><option value="any">Any airline</option><option value="include">Only airlines I choose</option><option value="exclude">Avoid airlines I choose</option></select></div>{search.advanced?.airlineMode !== "any" && <fieldset className="airline-picker"><legend>{search.advanced?.airlineMode === "include" ? "Choose airlines to include" : "Choose airlines to avoid"}</legend><input className="airline-search" type="search" aria-label="Search airlines" placeholder="Search airline name or code" value={airlineQuery} onChange={e => setAirlineQuery(e.target.value)} /><div className="airline-choice-list">{airlineOptions.filter(([code, name]) => `${code} ${name}`.toLowerCase().includes(airlineQuery.toLowerCase())).map(([code,name]) => <label key={code}><input type="checkbox" checked={search.advanced?.airlines.includes(code) ?? false} onChange={e => updateAdvanced("airlines", e.target.checked ? [...(search.advanced?.airlines ?? []), code] : (search.advanced?.airlines ?? []).filter(item => item !== code))} /><span>{name}</span><small>{code}</small></label>)}</div><small className="airline-selected">{search.advanced?.airlines.length ? `${search.advanced.airlines.length} selected` : "Choose one or more airlines"}</small></fieldset>}</div>
-                <label className="input-block"><span>MAXIMUM TOTAL FARE · CAD</span><div className="input-wrap"><span className="field-symbol">$</span><input type="number" min="1" max="50000" placeholder="No price limit" value={search.advanced?.maxPrice ?? ""} onChange={e => updateAdvanced("maxPrice", e.target.value)} /></div></label>
+                <label className="input-block"><span>MAXIMUM TOTAL FARE · {search.currency}</span><div className="input-wrap"><span className="field-symbol">{search.currency}</span><input type="number" min="1" placeholder="No price limit" value={search.advanced?.maxPrice ?? ""} onChange={e => updateAdvanced("maxPrice", e.target.value)} /></div></label>
                 <label className="input-block"><span>OUTBOUND DEPARTURE TIME</span><div className="input-wrap"><select value={search.advanced?.outboundTime ?? ""} onChange={e => updateAdvanced("outboundTime", e.target.value)}>{timeOptions.map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></div></label>
                 <label className="input-block"><span>RETURN DEPARTURE TIME</span><div className="input-wrap"><select value={search.advanced?.returnTime ?? ""} onChange={e => updateAdvanced("returnTime", e.target.value)}>{timeOptions.map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></div></label>
                 <label className="input-block"><span>MAXIMUM FLIGHT TIME · EACH WAY</span><div className="input-wrap"><select value={search.advanced?.maxDuration ?? 0} onChange={e => updateAdvanced("maxDuration", Number(e.target.value))}><option value="0">No limit</option>{[6,8,10,12,16,20,24,30].map(hours => <option key={hours} value={hours * 60}>Up to {hours} hours</option>)}</select></div></label>
@@ -706,20 +720,20 @@ export default function Home() {
       </section>
 
       {searched && <section className="results-section" aria-live="polite">
-        <div className="results-title-row"><div><span className="section-kicker">YOUR FARE WINDOW</span><h2>{search.origin.split(" (")[0]} <span className="route-arrow">→</span> {search.destination.split(" (")[0]}</h2><p>{prettyRange(search.dateFrom, search.dateTo)} · return trips · CAD</p></div>
+        <div className="results-title-row"><div><span className="section-kicker">YOUR FARE WINDOW</span><h2>{search.origin.split(" (")[0]} <span className="route-arrow">→</span> {search.destination.split(" (")[0]}</h2><p>{prettyRange(search.dateFrom, search.dateTo)} · return trips · {search.currency}</p></div>
           {offers.length > 0 && <button className="save-button" onClick={saveSearch} disabled={saveBusy}><span>＋</span> {saveBusy ? "Saving…" : "Save search"}</button>}
         </div>
         {loading && <div className="loading-panel"><span className="spinner spinner-dark" /> Checking available dates…</div>}
         {!loading && error && <div className="empty-panel"><span className="empty-spark"><SparkIcon /></span><strong>{error}</strong><span>Try adjusting the range or trip length.</span></div>}
         {!loading && offers.length > 0 && <>
-          <div className="fare-summary"><div className="summary-icon"><SparkIcon /></div><div><span>LOWEST RETURN FARE FOUND</span><strong>${cheapest} <small>CAD</small></strong></div><p>Checked {checkedPairs} of {totalPairs} possible date pairs{usageRemaining !== null ? ` · ${usageRemaining} API searches left in this budget` : ""}</p></div>
+          <div className="fare-summary"><div className="summary-icon"><SparkIcon /></div><div><span>LOWEST RETURN FARE FOUND</span><strong>{formatFare(cheapest, search.currency)}</strong></div><p>Checked {checkedPairs} of {totalPairs} possible date pairs{usageRemaining !== null ? ` · ${usageRemaining} API searches left in this budget` : ""}</p></div>
           <div className="legend-row"><span className="legend-label">DATE PAIRS BY PRICE</span><span><i className="legend-dot best" /> Lowest</span><span><i className="legend-dot good" /> Good value</span><span><i className="legend-dot other" /> Other fares</span></div>
           <div className="offer-list">
             {offers.map((offer, index) => <article key={offer.id} className={`offer-card tier-${index < 2 ? "best" : index < 4 ? "good" : "other"}`}>
               <div className="offer-rank">{index === 0 ? <span className="best-tag"><SparkIcon /> LOWEST</span> : <span className="rank-label">OPTION {String(index + 1).padStart(2, "0")}</span>}<span className="offer-source">{offer.source}</span></div>
               <div className="offer-main">
                 <div className="date-pair"><div><span>GO</span><strong>{prettyDate(offer.departureDate)}</strong><small>{offer.outboundTime}</small></div><div className="pair-connector"><span /><ArrowIcon /><span /></div><div><span>RETURN</span><strong>{prettyDate(offer.returnDate)}</strong><small>Round trip date</small></div></div>
-              <div className="offer-price"><strong>${offer.price}</strong><span>CAD · {search.travellers} {search.travellers === 1 ? "traveler" : "travelers"}</span></div>
+              <div className="offer-price"><strong>{formatFare(offer.price, search.currency)}</strong><span>{search.travellers} {search.travellers === 1 ? "traveler" : "travelers"}</span></div>
               </div>
               <div className="offer-details"><span>{offer.outboundStops === 0 ? "Non-stop outbound" : `${offer.outboundStops} stop${offer.outboundStops === 1 ? "" : "s"} outbound`}</span><span>{offer.duration} outbound</span><span>{tripDaysInclusive(offer.departureDate, offer.returnDate)} days including departure</span></div>
               <div className="offer-footnote"><a href={offer.bookingUrl} target="_blank" rel="noreferrer">Check these dates on Google Flights ↗</a> · final fare and return itinerary confirmed there</div>
@@ -740,11 +754,12 @@ export default function Home() {
         <div className="saved-heading"><div><span className="section-kicker">ON THIS DEVICE</span><h2 id="history-heading">Recent search history</h2></div>{searchHistory.length > 0 && <button className="text-button clear-history" onClick={clearSearchHistory}>Clear history</button>}</div>
         {searchHistory.length === 0 ? <div className="saved-empty">Your searches and the fares found will appear here.</div> : <div className="history-list">{searchHistory.map(item => {
           const lowest = item.offers.length ? Math.min(...item.offers.map(offer => offer.price)) : null;
-          return <details className="history-item" key={item.id}><summary><span className="history-route"><strong>{item.search.origin.split(" (")[0]} <i>→</i> {item.search.destination.split(" (")[0]}</strong><small>{prettyRange(item.search.dateFrom, item.search.dateTo)} · {new Date(item.searchedAt).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></span><span className="history-summary-price">{lowest === null ? "No fares found" : `From $${lowest} CAD`}</span></summary><div className="history-results">{item.offers.length ? <>{item.offers.map(offer => <div className="history-result" key={offer.id}><span><strong>{prettyDate(offer.departureDate)} → {prettyDate(offer.returnDate)}</strong><small>{offer.outboundTime} outbound · {offer.outboundStops === 0 ? "Non-stop" : `${offer.outboundStops} stop${offer.outboundStops === 1 ? "" : "s"}`} · {offer.duration}</small></span><b>${offer.price} <small>CAD</small></b></div>)}<p>Checked {item.checked} of {item.total} possible date pairs.</p></> : <p>No fares were returned for this search.</p>}<button className="history-restore" onClick={() => restoreHistory(item)}>Show this previous result</button></div></details>;
+          const itemCurrency = item.search.currency ?? "CAD";
+          return <details className="history-item" key={item.id}><summary><span className="history-route"><strong>{item.search.origin.split(" (")[0]} <i>→</i> {item.search.destination.split(" (")[0]}</strong><small>{prettyRange(item.search.dateFrom, item.search.dateTo)} · {new Date(item.searchedAt).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></span><span className="history-summary-price">{lowest === null ? "No fares found" : `From ${formatFare(lowest, itemCurrency)}`}</span></summary><div className="history-results">{item.offers.length ? <>{item.offers.map(offer => <div className="history-result" key={offer.id}><span><strong>{prettyDate(offer.departureDate)} → {prettyDate(offer.returnDate)}</strong><small>{offer.outboundTime} outbound · {offer.outboundStops === 0 ? "Non-stop" : `${offer.outboundStops} stop${offer.outboundStops === 1 ? "" : "s"}`} · {offer.duration}</small></span><b>{formatFare(offer.price, itemCurrency)}</b></div>)}<p>Checked {item.checked} of {item.total} possible date pairs.</p></> : <p>No fares were returned for this search.</p>}<button className="history-restore" onClick={() => restoreHistory(item)}>Show this previous result</button></div></details>;
         })}</div>}
       </section>
 
-      <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-api-usage">SerpApi requests left this month: <strong>{usageRemaining === null ? "run a search to check" : usageRemaining}</strong>{usageKeySource && <small> · using {usageKeySource}</small>}</span><span className="footer-country">Made for Canadian travellers · CAD</span><span className="footer-credit">Dileep Kodira App</span></footer>
+      <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-api-usage">SerpApi requests left this month: <strong>{usageRemaining === null ? "run a search to check" : usageRemaining}</strong>{usageKeySource && <small> · using {usageKeySource}</small>}</span><span className="footer-country">Made for Canadian travellers · {search.currency}</span><span className="footer-credit">Dileep Kodira App</span></footer>
 
       {accountOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAccountOpen(false); }}><section className="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title"><button className="modal-close" onClick={() => setAccountOpen(false)} aria-label="Close">×</button><span className="modal-mark"><SparkIcon /></span><span className="section-kicker">FARE GLOW ACCOUNT</span><h2 id="account-title">Keep your dates close.</h2><p>Sign in to save searches to your account.</p>
         {supabaseReady ? <><button className="google-signin" type="button" onClick={signInWithGoogle} disabled={accountBusy}><span className="google-mark" aria-hidden="true">G</span>{accountBusy ? "Connecting to Google…" : "Continue with Google"}</button><div className="auth-divider"><span>or sign in with email</span></div><form onSubmit={signIn}><label className="input-block"><span>EMAIL ADDRESS</span><div className="input-wrap"><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required /></div></label><button className="search-button modal-submit" type="submit" disabled={accountBusy}>{accountBusy ? "Sending link…" : "Email me a sign-in link"}<ArrowIcon /></button></form></> : <div className="setup-note"><strong>Account connection needed</strong><span>Supabase account details are not set up yet. The setup guide explains how to switch on sign-in and saved searches.</span></div>}

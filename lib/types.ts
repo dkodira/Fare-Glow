@@ -1,6 +1,22 @@
+export const FARE_CURRENCIES = [
+  { code: "CAD", name: "Canadian Dollar" },
+  { code: "USD", name: "US Dollar" },
+  { code: "EUR", name: "Euro" },
+  { code: "GBP", name: "British Pound" },
+  { code: "INR", name: "Indian Rupee" },
+  { code: "AUD", name: "Australian Dollar" },
+  { code: "JPY", name: "Japanese Yen" },
+  { code: "MXN", name: "Mexican Peso" },
+  { code: "CNY", name: "Chinese Yuan" },
+  { code: "SGD", name: "Singapore Dollar" },
+] as const;
+
+export type FareCurrency = (typeof FARE_CURRENCIES)[number]["code"];
+
 export type SearchInput = {
   origin: string;
   destination: string;
+  currency: FareCurrency;
   dateFrom: string;
   dateTo: string;
   minNights: number;

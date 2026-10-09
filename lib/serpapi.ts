@@ -164,7 +164,7 @@ function mapFlights(data: SerpSearchResponse, input: SearchInput, candidate: Can
   googleLink.searchParams.set("q", `round trip flights from ${origin} to ${destination} leaving ${candidate.outboundDate} returning ${candidate.returnDate}`);
   googleLink.searchParams.set("hl", "en");
   googleLink.searchParams.set("gl", "CA");
-  googleLink.searchParams.set("curr", "CAD");
+  googleLink.searchParams.set("curr", input.currency);
 
   return [{
     id: `${candidate.outboundDate}-${candidate.returnDate}`,
@@ -213,7 +213,7 @@ function addAdvancedParams(url: URL, advanced?: AdvancedFilters) {
 async function searchPair(input: SearchInput, candidate: Candidate, apiKey: string, cacheScope: string, monthlyCap: number): Promise<FlightOffer[]> {
   const origin = airportCode(input.origin)!;
   const destination = airportCode(input.destination)!;
-  const key = [cacheScope, origin, destination, candidate.outboundDate, candidate.returnDate, input.travellers, JSON.stringify(input.advanced ?? {})].join("|");
+  const key = [cacheScope, origin, destination, candidate.outboundDate, candidate.returnDate, input.travellers, input.currency, JSON.stringify(input.advanced ?? {})].join("|");
   const cached = responseCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.offers;
   const pending = inFlight.get(key);
@@ -236,7 +236,7 @@ async function searchPair(input: SearchInput, candidate: Candidate, apiKey: stri
     url.searchParams.set("return_date", candidate.returnDate);
     url.searchParams.set("type", "1");
     url.searchParams.set("adults", String(input.travellers));
-    url.searchParams.set("currency", "CAD");
+    url.searchParams.set("currency", input.currency);
     url.searchParams.set("gl", "ca");
     url.searchParams.set("hl", "en");
     addAdvancedParams(url, input.advanced);
