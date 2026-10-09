@@ -107,7 +107,44 @@ const airportOptions = [
   { city: "Auckland", name: "Auckland Airport", code: "AKL", country: "New Zealand" },
   { city: "Cancún", name: "Cancún International", code: "CUN", country: "Mexico" },
   { city: "Mexico City", name: "Mexico City International", code: "MEX", country: "Mexico" },
+  { city: "Bengaluru", name: "Kempegowda International", code: "BLR", country: "India" },
+  { city: "Delhi", name: "Indira Gandhi International", code: "DEL", country: "India" },
+  { city: "Mumbai", name: "Chhatrapati Shivaji Maharaj International", code: "BOM", country: "India" },
+  { city: "Hyderabad", name: "Rajiv Gandhi International", code: "HYD", country: "India" },
+  { city: "Chennai", name: "Chennai International", code: "MAA", country: "India" },
+  { city: "Kochi", name: "Cochin International", code: "COK", country: "India" },
+  { city: "Frankfurt", name: "Frankfurt Airport", code: "FRA", country: "Germany" },
+  { city: "Madrid", name: "Adolfo Suárez Madrid–Barajas", code: "MAD", country: "Spain" },
+  { city: "Barcelona", name: "Barcelona–El Prat Airport", code: "BCN", country: "Spain" },
+  { city: "Zurich", name: "Zurich Airport", code: "ZRH", country: "Switzerland" },
+  { city: "Istanbul", name: "Istanbul Airport", code: "IST", country: "Türkiye" },
+  { city: "Dublin", name: "Dublin Airport", code: "DUB", country: "Ireland" },
+  { city: "Copenhagen", name: "Copenhagen Airport", code: "CPH", country: "Denmark" },
+  { city: "Vienna", name: "Vienna International", code: "VIE", country: "Austria" },
+  { city: "Athens", name: "Athens International", code: "ATH", country: "Greece" },
+  { city: "Doha", name: "Hamad International", code: "DOH", country: "Qatar" },
+  { city: "Abu Dhabi", name: "Zayed International", code: "AUH", country: "United Arab Emirates" },
+  { city: "Hong Kong", name: "Hong Kong International", code: "HKG", country: "Hong Kong" },
+  { city: "Taipei", name: "Taiwan Taoyuan International", code: "TPE", country: "Taiwan" },
+  { city: "Shanghai", name: "Shanghai Pudong International", code: "PVG", country: "China" },
+  { city: "Beijing", name: "Beijing Capital International", code: "PEK", country: "China" },
+  { city: "Kuala Lumpur", name: "Kuala Lumpur International", code: "KUL", country: "Malaysia" },
+  { city: "Jakarta", name: "Soekarno–Hatta International", code: "CGK", country: "Indonesia" },
+  { city: "Manila", name: "Ninoy Aquino International", code: "MNL", country: "Philippines" },
+  { city: "Melbourne", name: "Melbourne Airport", code: "MEL", country: "Australia" },
+  { city: "Brisbane", name: "Brisbane Airport", code: "BNE", country: "Australia" },
+  { city: "Johannesburg", name: "O. R. Tambo International", code: "JNB", country: "South Africa" },
+  { city: "Cape Town", name: "Cape Town International", code: "CPT", country: "South Africa" },
+  { city: "Nairobi", name: "Jomo Kenyatta International", code: "NBO", country: "Kenya" },
+  { city: "Cairo", name: "Cairo International", code: "CAI", country: "Egypt" },
+  { city: "São Paulo", name: "São Paulo–Guarulhos International", code: "GRU", country: "Brazil" },
+  { city: "Buenos Aires", name: "Ministro Pistarini International", code: "EZE", country: "Argentina" },
+  { city: "Santiago", name: "Arturo Merino Benítez International", code: "SCL", country: "Chile" },
+  { city: "Lima", name: "Jorge Chávez International", code: "LIM", country: "Peru" },
+  { city: "Bogotá", name: "El Dorado International", code: "BOG", country: "Colombia" },
 ];
+
+const quickPickAirportCodes = ["LHR", "BLR", "DEL", "DXB", "SIN", "CDG", "JFK", "HKG"];
 
 function normalizeAirportSearch(value: string) {
   return value.toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
@@ -140,7 +177,7 @@ function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
         return 3;
       };
       return rank(a) - rank(b);
-    }).slice(0, 6) : [];
+    }).slice(0, 8) : quickPickAirportCodes.map(code => airportOptions.find(airport => airport.code === code)).filter((airport): airport is typeof airportOptions[number] => Boolean(airport));
   const listId = `airport-suggestions-${field}`;
 
   function chooseAirport(airport: typeof airportOptions[number]) {
@@ -157,14 +194,14 @@ function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
         <input
           aria-label={`${label === "FROM" ? "Departure" : "Destination"} city or airport`}
           aria-autocomplete="list"
-          aria-expanded={open && query.length > 0}
+          aria-expanded={open}
           aria-controls={listId}
           aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${matches[activeIndex]?.code}` : undefined}
           role="combobox"
           autoComplete="off"
           value={value}
           onFocus={() => setOpen(true)}
-          onBlur={() => setOpen(false)}
+          onBlur={() => { window.setTimeout(() => setOpen(false), 180); }}
           onChange={event => { onChange(event.target.value); setOpen(true); setActiveIndex(-1); }}
           onKeyDown={event => {
             if (event.key === "ArrowDown" && matches.length) { event.preventDefault(); setOpen(true); setActiveIndex(index => Math.min(index + 1, matches.length - 1)); }
@@ -176,14 +213,14 @@ function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
           required
         />
       </div>
-      {open && query && <div className="airport-suggestions" id={listId} role="listbox" aria-label={`${label === "FROM" ? "Departure" : "Destination"} airports`}>
+      {open && <div className="airport-suggestions" id={listId} role="listbox" aria-label={`${label === "FROM" ? "Departure" : "Destination"} airports`}>
+        {!query && <div className="airport-list-heading">Popular airports · type to search</div>}
         {matches.length ? matches.map((airport, index) => <div
           className={`airport-suggestion${index === activeIndex ? " is-active" : ""}`}
           id={`${listId}-${airport.code}`}
           key={airport.code}
           role="option"
           aria-selected={index === activeIndex}
-          onPointerDown={event => event.preventDefault()}
           onClick={() => chooseAirport(airport)}
         >
           <span className="airport-suggestion-main"><strong>{airport.city}</strong><small>{airport.name} · {airport.country}</small></span>
@@ -235,6 +272,7 @@ export default function Home() {
   const [checkedPairs, setCheckedPairs] = useState(0);
   const [totalPairs, setTotalPairs] = useState(0);
   const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
+  const [usageKeySource, setUsageKeySource] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [saved, setSaved] = useState<SavedSearch[]>([]);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -309,6 +347,33 @@ export default function Home() {
     void loadProviderKeyStatus();
     return () => { cancelled = true; };
   }, [userEmail]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadUsage() {
+      if (byokMode && !userEmail) {
+        setUsageRemaining(null);
+        setUsageKeySource("");
+        return;
+      }
+      const headers: Record<string, string> = {};
+      if (userEmail) {
+        const supabase = getSupabase();
+        const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
+        if (data.session?.access_token) headers.Authorization = `Bearer ${data.session.access_token}`;
+      }
+      try {
+        const response = await fetch("/api/offers", { headers, cache: "no-store" });
+        const result = await response.json();
+        if (cancelled || !response.ok || typeof result.requestsRemaining !== "number") return;
+        setUsageRemaining(result.requestsRemaining);
+        setUsageKeySource(result.keySource ?? "");
+        if (result.keySource === "your SerpApi key") setProviderKeyUsage(result.requestsRemaining);
+      } catch { /* The balance is also refreshed after each fare search. */ }
+    }
+    void loadUsage();
+    return () => { cancelled = true; };
+  }, [userEmail, providerKeyConfigured, byokMode]);
 
   useEffect(() => {
     if (!toast) return;
@@ -386,6 +451,8 @@ export default function Home() {
       setHasMoreDates(data.moreAvailable);
       setNextBatch(data.nextBatch);
       setUsageRemaining(data.usageRemaining);
+      setUsageKeySource(data.keySource ?? "");
+      if (data.keySource === "your SerpApi key") setProviderKeyUsage(data.usageRemaining);
       if (!data.offers.length && batch === 0) setError("No fares came back for the first dates checked. You can check more dates or adjust your travel window.");
       if (data.budgetReached) setError("This month’s SerpApi search budget has been reached. The fares already found are still shown.");
     } catch (reason) {
@@ -432,6 +499,8 @@ export default function Home() {
       if (!response.ok) throw new Error(result.error || "Could not save your SerpApi key.");
       setProviderKeyConfigured(true);
       setProviderKeyUsage(typeof result.usageRemaining === "number" ? result.usageRemaining : null);
+      setUsageRemaining(typeof result.usageRemaining === "number" ? result.usageRemaining : null);
+      setUsageKeySource("your SerpApi key");
       setProviderKeyValue("");
       setProviderKeyMessage("Key saved securely. Fare Glow will use it for your searches.");
     } catch (reason) {
@@ -449,7 +518,7 @@ export default function Home() {
       const response = await fetch("/api/provider-key", { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not remove your SerpApi key.");
-      setProviderKeyConfigured(false); setProviderKeyUsage(null); setProviderKeyValue("");
+      setProviderKeyConfigured(false); setProviderKeyUsage(null); setProviderKeyValue(""); setUsageRemaining(null); setUsageKeySource(byokMode ? "" : "Fare Glow's shared key");
       setProviderKeyMessage("Your saved SerpApi key was removed.");
     } catch (reason) {
       setProviderKeyMessage(reason instanceof Error ? reason.message : "Could not remove your SerpApi key.");
@@ -627,7 +696,7 @@ export default function Home() {
         })}</div>}
       </section>
 
-      <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-country">Made for Canadian travellers · CAD</span></footer>
+      <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-api-usage">SerpApi requests left this month: <strong>{usageRemaining === null ? "run a search to check" : usageRemaining}</strong>{usageKeySource && <small> · using {usageKeySource}</small>}</span><span className="footer-country">Made for Canadian travellers · CAD</span></footer>
 
       {accountOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAccountOpen(false); }}><section className="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title"><button className="modal-close" onClick={() => setAccountOpen(false)} aria-label="Close">×</button><span className="modal-mark"><SparkIcon /></span><span className="section-kicker">FARE GLOW ACCOUNT</span><h2 id="account-title">Keep your dates close.</h2><p>Sign in to save searches to your account.</p>
         {supabaseReady ? <form onSubmit={signIn}><label className="input-block"><span>EMAIL ADDRESS</span><div className="input-wrap"><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required /></div></label><button className="search-button modal-submit" type="submit" disabled={accountBusy}>{accountBusy ? "Sending link…" : "Email me a sign-in link"}<ArrowIcon /></button></form> : <div className="setup-note"><strong>Account connection needed</strong><span>Supabase account details are not set up yet. The setup guide explains how to switch on sign-in and saved searches.</span></div>}

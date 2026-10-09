@@ -1,9 +1,43 @@
 import { NextResponse } from "next/server";
 import type { SearchInput } from "@/lib/types";
-import { searchLiveOffers } from "@/lib/serpapi";
+import { getSerpApiAccount, searchLiveOffers } from "@/lib/serpapi";
 import { authenticateRequest, getStoredSerpApiKey } from "@/lib/user-serpapi-key";
 
 export const runtime = "nodejs";
+
+function ownerMonthlyCap() {
+  const configured = Number(process.env.SERPAPI_MONTHLY_BUDGET ?? 200);
+  return Number.isFinite(configured) ? Math.max(1, Math.min(200, Math.floor(configured))) : 200;
+}
+
+export async function GET(request: Request) {
+  try {
+    const keyMode = process.env.SERPAPI_KEY_MODE ?? "owner";
+    let apiKey = process.env.SERPAPI_API_KEY;
+    let monthlyCap = ownerMonthlyCap();
+    let keySource = "Fare Glow's shared key";
+    if (keyMode === "byok") {
+      const identity = await authenticateRequest(request);
+      if (!identity) return NextResponse.json({ error: "Sign in to check your SerpApi allowance." }, { status: 401 });
+      apiKey = await getStoredSerpApiKey(identity.admin, identity.user.id);
+      monthlyCap = 250;
+      keySource = "your SerpApi key";
+      if (!apiKey) return NextResponse.json({ error: "Add your SerpApi key to check its monthly allowance." }, { status: 403 });
+    } else if (keyMode === "owner" && request.headers.has("authorization")) {
+      const identity = await authenticateRequest(request);
+      if (!identity) return NextResponse.json({ error: "Please sign in again to check your SerpApi allowance." }, { status: 401 });
+      const userApiKey = await getStoredSerpApiKey(identity.admin, identity.user.id);
+      if (userApiKey) { apiKey = userApiKey; monthlyCap = 250; keySource = "your SerpApi key"; }
+    }
+    if (!apiKey) return NextResponse.json({ error: "Live fares are not connected yet." }, { status: 503 });
+    const account = await getSerpApiAccount(apiKey);
+    const limit = Math.min(monthlyCap, account.searches_per_month ?? 250);
+    return NextResponse.json({ requestsRemaining: Math.max(0, limit - (account.this_month_usage ?? 0)), keySource });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not check SerpApi usage.";
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
+}
 
 function isValidDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
@@ -63,12 +97,14 @@ export async function POST(request: Request) {
   try {
     const keyMode = process.env.SERPAPI_KEY_MODE ?? "owner";
     let keyOptions: { apiKey?: string; cacheScope?: string; monthlyCap?: number } = {};
+    let keySource = "Fare Glow's shared key";
     if (keyMode === "byok") {
       const identity = await authenticateRequest(request);
       if (!identity) return NextResponse.json({ error: "Sign in to use your own SerpApi key." }, { status: 401 });
       const apiKey = await getStoredSerpApiKey(identity.admin, identity.user.id);
       if (!apiKey) return NextResponse.json({ error: "Add your SerpApi key in account settings before searching." }, { status: 403 });
       keyOptions = { apiKey, cacheScope: identity.user.id, monthlyCap: 250 };
+      keySource = "your SerpApi key";
     } else if (keyMode === "owner") {
       // In owner mode a signed-in user may choose to use their own key from
       // account settings. If they have not added one, use the owner's key.
@@ -76,13 +112,13 @@ export async function POST(request: Request) {
         const identity = await authenticateRequest(request);
         if (!identity) return NextResponse.json({ error: "Please sign in again to use your saved SerpApi key." }, { status: 401 });
         const userApiKey = await getStoredSerpApiKey(identity.admin, identity.user.id);
-        if (userApiKey) keyOptions = { apiKey: userApiKey, cacheScope: identity.user.id, monthlyCap: 250 };
+        if (userApiKey) { keyOptions = { apiKey: userApiKey, cacheScope: identity.user.id, monthlyCap: 250 }; keySource = "your SerpApi key"; }
       }
     } else {
       return NextResponse.json({ error: "Fare Glow's SerpApi key mode is not configured correctly." }, { status: 503 });
     }
     const result = await searchLiveOffers(body, batch, keyOptions);
-    return NextResponse.json({ ...result, mode: "live" as const });
+    return NextResponse.json({ ...result, mode: "live" as const, keySource });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Live fares could not be checked. Please try again.";
     const status = message.includes("not configured") || message.includes("not connected") ? 503 : message.includes("budget") ? 429 : 502;
