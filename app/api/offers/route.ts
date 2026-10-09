@@ -22,6 +22,17 @@ export async function POST(request: Request) {
   }
 
   const { origin, destination, dateFrom, dateTo, minNights, maxNights, travellers } = body;
+  const advanced = body.advanced;
+  if (advanced) {
+    const validStops = ["any", "nonstop", "one", "two"].includes(advanced.stops);
+    const validLists = [advanced.airlines, advanced.excludedAirports].every(items => Array.isArray(items) && items.length <= 60 && items.every(item => /^[A-Z0-9]{2,3}$/.test(item)));
+    if (!validStops || !validLists || ![0, 1, 2].includes(advanced.carryOn) || !["any", "include", "exclude"].includes(advanced.airlineMode) || ![1, 2, 3, 4].includes(advanced.cabin) || ![1, 2, 3, 4, 5, 6].includes(advanced.sortBy) || ![0, 360, 480, 600, 720, 960, 1200, 1440, 1800].includes(advanced.maxDuration) || !["", "4,7", "8,11", "12,15", "16,19", "20,23", "90,210", "90,330", "120,360", "180,480"].includes(advanced.outboundTime) || !["", "4,7", "8,11", "12,15", "16,19", "20,23", "90,210", "90,330", "120,360", "180,480"].includes(advanced.returnTime) || !["", "90,210", "90,330", "120,360", "180,480"].includes(advanced.layover) || (advanced.maxPrice !== "" && (!/^\d{1,5}$/.test(advanced.maxPrice) || Number(advanced.maxPrice) < 1))) {
+      return NextResponse.json({ error: "One or more advanced flight options are not valid. Review the selections and try again." }, { status: 400 });
+    }
+    if (!["any", "include", "exclude"].includes(advanced.airlineMode) || (advanced.airlineMode === "any" && advanced.airlines.length > 0)) {
+      return NextResponse.json({ error: "Choose whether the selected airlines should be included or avoided." }, { status: 400 });
+    }
+  }
   if (!origin?.trim() || !destination?.trim() || !dateFrom || !dateTo || dateTo < dateFrom || !isValidDate(dateFrom) || !isValidDate(dateTo)) {
     return NextResponse.json({ error: "Enter a starting place, destination, and a valid date range." }, { status: 400 });
   }

@@ -2,9 +2,9 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { getSupabase, hasSupabaseConfig } from "@/lib/supabase";
-import type { FlightOffer, SearchInput } from "@/lib/types";
+import type { AdvancedFilters, FlightOffer, SearchInput } from "@/lib/types";
 
-type SavedSearch = { id: string; origin: string; destination: string; date_from: string; date_to: string; min_nights: number; max_nights: number; travellers: number; price_alert_enabled: boolean; target_price: number | null };
+type SavedSearch = { id: string; origin: string; destination: string; date_from: string; date_to: string; min_nights: number; max_nights: number; travellers: number };
 
 const today = new Date();
 const addDays = (date: Date, count: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + count);
@@ -17,7 +17,22 @@ const defaultSearch: SearchInput = {
   minNights: 3,
   maxNights: 10,
   travellers: 1,
+  advanced: { stops: "any", carryOn: 0, airlineMode: "any", airlines: [], maxPrice: "", outboundTime: "", returnTime: "", maxDuration: 0, layover: "", excludedAirports: [], cabin: 1, sortBy: 2, lowEmissions: false },
 };
+const airlineOptions = [
+  ["AC", "Air Canada"], ["WS", "WestJet"], ["PD", "Porter Airlines"], ["TS", "Air Transat"], ["F8", "Flair Airlines"],
+  ["AA", "American Airlines"], ["UA", "United Airlines"], ["DL", "Delta Air Lines"], ["AS", "Alaska Airlines"], ["BA", "British Airways"],
+  ["AF", "Air France"], ["KL", "KLM"], ["LH", "Lufthansa"], ["EK", "Emirates"], ["QR", "Qatar Airways"], ["NH", "ANA"], ["JL", "Japan Airlines"],
+];
+const timeOptions = [["", "Any time"], ["4,7", "Early morning · 4–8am"], ["8,11", "Morning · 8am–noon"], ["12,15", "Afternoon · noon–4pm"], ["16,19", "Evening · 4–8pm"], ["20,23", "Late evening · 8pm–midnight"]];
+const defaultAdvanced: AdvancedFilters = defaultSearch.advanced!;
+function clockMinutes(value: string) {
+  const match = value.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return 0;
+  let hour = Number(match[1]) % 12;
+  if (match[3].toUpperCase() === "PM") hour += 12;
+  return hour * 60 + Number(match[2]);
+}
 const tripLengthOptions = [
   ...Array.from({ length: 30 }, (_, index) => {
     const days = index + 1;
@@ -204,6 +219,7 @@ function tripDaysInclusive(from: string, to: string) {
 
 export default function Home() {
   const [search, setSearch] = useState<SearchInput>(defaultSearch);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [offers, setOffers] = useState<FlightOffer[]>([]);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -220,8 +236,6 @@ export default function Home() {
   const [accountMessage, setAccountMessage] = useState("");
   const [accountBusy, setAccountBusy] = useState(false);
   const [saveBusy, setSaveBusy] = useState(false);
-  const [alertEnabled, setAlertEnabled] = useState(true);
-  const [alertTarget, setAlertTarget] = useState("");
   const [toast, setToast] = useState("");
   const [providerKeyOpen, setProviderKeyOpen] = useState(false);
   const [providerKeyValue, setProviderKeyValue] = useState("");
@@ -290,6 +304,10 @@ export default function Home() {
     });
   }
 
+  function updateAdvanced<K extends keyof AdvancedFilters>(key: K, value: AdvancedFilters[K]) {
+    setSearch(current => ({ ...current, advanced: { ...defaultAdvanced, ...current.advanced, [key]: value } }));
+  }
+
   async function findFlights(event?: FormEvent, batch = 0) {
     event?.preventDefault();
     if (byokMode && !userEmail) {
@@ -316,7 +334,13 @@ export default function Home() {
       if (!response.ok) throw new Error(data.error || "We couldn’t search those dates.");
       setOffers(current => {
         const merged = batch === 0 ? data.offers as FlightOffer[] : [...current, ...data.offers as FlightOffer[]];
-        return merged.sort((a, b) => a.price - b.price).filter((offer, index, all) => all.findIndex(item => item.id === offer.id) === index);
+        const sortBy = search.advanced?.sortBy ?? 2;
+        const sortOffers = (a: FlightOffer, b: FlightOffer) => sortBy === 3 ? a.departureDate.localeCompare(b.departureDate) || clockMinutes(a.outboundTime) - clockMinutes(b.outboundTime)
+          : sortBy === 4 ? a.departureDate.localeCompare(b.departureDate) || clockMinutes(a.arrivalTime ?? "") - clockMinutes(b.arrivalTime ?? "")
+          : sortBy === 5 ? (a.durationMinutes ?? Infinity) - (b.durationMinutes ?? Infinity)
+          : sortBy === 6 ? (a.emissionsGrams ?? Infinity) - (b.emissionsGrams ?? Infinity)
+          : sortBy === 1 ? 0 : a.price - b.price;
+        return merged.sort(sortOffers).filter((offer, index, all) => all.findIndex(item => item.id === offer.id) === index);
       });
       setCheckedPairs(current => batch === 0 ? data.checked : current + data.checked);
       setTotalPairs(data.totalCandidates);
@@ -418,8 +442,7 @@ export default function Home() {
     const { data, error: saveError } = await supabase.from("saved_searches").insert({
       user_id: userResult.user.id,
       origin: search.origin, destination: search.destination, date_from: search.dateFrom, date_to: search.dateTo,
-      min_nights: search.minNights, max_nights: search.maxNights, travellers: search.travellers, price_alert_enabled: alertEnabled,
-      target_price: alertTarget ? Number(alertTarget) : null,
+      min_nights: search.minNights, max_nights: search.maxNights, travellers: search.travellers,
     }).select().single();
     if (saveError) setToast("Couldn’t save yet. Check the account setup guide.");
     else { setSaved(current => [data as SavedSearch, ...current]); setToast("Search saved. Price alert setup is the next connection step."); }
@@ -432,18 +455,6 @@ export default function Home() {
     const { error: deleteError } = await supabase.from("saved_searches").delete().eq("id", id);
     if (deleteError) setToast("Couldn’t remove that search.");
     else { setSaved(current => current.filter(item => item.id !== id)); setToast("Saved search removed."); }
-  }
-
-  async function toggleSavedAlert(item: SavedSearch) {
-    const supabase = getSupabase();
-    if (!supabase) return;
-    const enabled = !item.price_alert_enabled;
-    const { error: updateError } = await supabase.from("saved_searches").update({ price_alert_enabled: enabled }).eq("id", item.id);
-    if (updateError) setToast("Couldn’t update that alert.");
-    else {
-      setSaved(current => current.map(searchItem => searchItem.id === item.id ? { ...searchItem, price_alert_enabled: enabled } : searchItem));
-      setToast(enabled ? "Fare alert preference saved." : "Fare alert turned off.");
-    }
   }
 
   function restoreSearch(item: SavedSearch) {
@@ -484,7 +495,7 @@ export default function Home() {
           <div><span className="section-kicker">YOUR TRIP</span><h2 id="search-heading">Where can you go?</h2></div>
           <span className="round-trip"><span className="round-icon">↔</span> Return trip</span>
         </div>
-        <form onSubmit={findFlights}>
+      <form onSubmit={findFlights}>
           <div className="route-fields">
             <AirportInput label="FROM" field="origin" value={search.origin} onChange={value => update("origin", value)} symbol="●" symbolClass="origin-symbol" />
             <button className="swap-button" type="button" onClick={swapRoute} aria-label="Swap origin and destination">⇄</button>
@@ -495,7 +506,29 @@ export default function Home() {
             <label className="input-block nights-block"><span>TRIP LENGTH · DAYS INCLUDING DEPARTURE</span><div className="input-wrap nights-input"><select aria-label="Minimum trip length in days including departure" value={search.minNights} onChange={e => update("minNights", Number(e.target.value))}>{tripLengthOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select><span className="date-divider">to</span><select aria-label="Maximum trip length in days including departure" value={search.maxNights} onChange={e => update("maxNights", Number(e.target.value))}>{tripLengthOptions.filter(option => option.value >= search.minNights).map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></div></label>
             <label className="input-block traveller-block"><span>TRAVELERS</span><div className="input-wrap traveller-input"><select aria-label="Number of travelers" value={search.travellers} onChange={e => update("travellers", Number(e.target.value))}>{[1,2,3,4,5,6,7,8,9].map(n => <option value={n} key={n}>{n} {n === 1 ? "adult" : "adults"}</option>)}</select></div></label>
           </div>
-          <div className="alert-setting"><label className="alert-check"><input type="checkbox" checked={alertEnabled} onChange={e => setAlertEnabled(e.target.checked)} /><span className="fake-check">✓</span><span><strong>Email me when fares drop</strong><small>Alerts need live fares and email service setup</small></span></label><label className="target-price"><span>OPTIONAL TARGET · CAD</span><div><b>$</b><input aria-label="Optional target total fare in Canadian dollars" type="number" min="1" max="50000" placeholder="Any drop" value={alertTarget} onChange={e => setAlertTarget(e.target.value)} /></div></label></div>
+          <section className="advanced-search" aria-label="Advanced flight options">
+            <button className="advanced-toggle" type="button" aria-expanded={advancedOpen} onClick={() => setAdvancedOpen(open => !open)}>
+              <span><strong>Advanced search</strong><small>Stops, airlines, bags, times, and more</small></span><span className="advanced-toggle-right">{advancedOpen ? "Hide options" : "Show options"} <b>{advancedOpen ? "−" : "+"}</b></span>
+            </button>
+            {advancedOpen && <div className="advanced-panel">
+              <div className="advanced-grid">
+                <label className="input-block"><span>STOPS · EACH DIRECTION</span><div className="input-wrap"><select value={search.advanced?.stops ?? "any"} onChange={e => updateAdvanced("stops", e.target.value as AdvancedFilters["stops"])}><option value="any">Any number of stops</option><option value="nonstop">Nonstop only</option><option value="one">1 stop or fewer</option><option value="two">2 stops or fewer</option></select></div><small className="field-help">“1 stop or fewer” includes nonstop flights.</small></label>
+                <label className="input-block"><span>CARRY-ON BAGS</span><div className="input-wrap"><select value={search.advanced?.carryOn ?? 0} onChange={e => updateAdvanced("carryOn", Number(e.target.value))}><option value="0">No preference</option><option value="1">At least 1 carry-on</option><option value="2">At least 2 carry-ons</option></select></div><small className="field-help">Carry-on bags only; checked bags aren’t filterable here.</small></label>
+                <label className="input-block"><span>AIRLINE PREFERENCE</span><div className="input-wrap"><select value={search.advanced?.airlineMode ?? "any"} onChange={e => updateAdvanced("airlineMode", e.target.value as AdvancedFilters["airlineMode"])}><option value="any">Any airline</option><option value="include">Only airlines I choose</option><option value="exclude">Avoid airlines I choose</option></select></div></label>
+                <label className="input-block"><span>MAXIMUM TOTAL FARE · CAD</span><div className="input-wrap"><span className="field-symbol">$</span><input type="number" min="1" max="50000" placeholder="No price limit" value={search.advanced?.maxPrice ?? ""} onChange={e => updateAdvanced("maxPrice", e.target.value)} /></div></label>
+                <label className="input-block"><span>OUTBOUND DEPARTURE TIME</span><div className="input-wrap"><select value={search.advanced?.outboundTime ?? ""} onChange={e => updateAdvanced("outboundTime", e.target.value)}>{timeOptions.map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></div></label>
+                <label className="input-block"><span>RETURN DEPARTURE TIME</span><div className="input-wrap"><select value={search.advanced?.returnTime ?? ""} onChange={e => updateAdvanced("returnTime", e.target.value)}>{timeOptions.map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></div></label>
+                <label className="input-block"><span>MAXIMUM FLIGHT TIME · EACH WAY</span><div className="input-wrap"><select value={search.advanced?.maxDuration ?? 0} onChange={e => updateAdvanced("maxDuration", Number(e.target.value))}><option value="0">No limit</option>{[6,8,10,12,16,20,24,30].map(hours => <option key={hours} value={hours * 60}>Up to {hours} hours</option>)}</select></div></label>
+                <label className="input-block"><span>LAYOVER LENGTH</span><div className="input-wrap"><select value={search.advanced?.layover ?? ""} onChange={e => updateAdvanced("layover", e.target.value)}><option value="">Any layover</option><option value="90,210">1.5–3.5 hours</option><option value="90,330">1.5–5.5 hours</option><option value="120,360">2–6 hours</option><option value="180,480">3–8 hours</option></select></div></label>
+                <label className="input-block"><span>TRAVEL CABIN</span><div className="input-wrap"><select value={search.advanced?.cabin ?? 1} onChange={e => updateAdvanced("cabin", Number(e.target.value))}><option value="1">Economy</option><option value="2">Premium economy</option><option value="3">Business</option><option value="4">First class</option></select></div></label>
+                <label className="input-block"><span>SHOW OFFERS SORTED BY</span><div className="input-wrap"><select value={search.advanced?.sortBy ?? 2} onChange={e => updateAdvanced("sortBy", Number(e.target.value))}><option value="1">Recommended</option><option value="2">Lowest price</option><option value="3">Earliest departure</option><option value="4">Earliest arrival</option><option value="5">Shortest flight time</option><option value="6">Lowest emissions</option></select></div></label>
+              </div>
+              {search.advanced?.airlineMode !== "any" && <fieldset className="choice-group"><legend>{search.advanced?.airlineMode === "include" ? "Choose airlines to include" : "Choose airlines to avoid"}</legend><div className="choice-list">{airlineOptions.map(([code,name]) => <label key={code}><input type="checkbox" checked={search.advanced?.airlines.includes(code) ?? false} onChange={e => updateAdvanced("airlines", e.target.checked ? [...(search.advanced?.airlines ?? []), code] : (search.advanced?.airlines ?? []).filter(item => item !== code))} /><span>{name}</span></label>)}</div></fieldset>}
+              <details className="airport-exclusions"><summary>Avoid specific connection airports <small>Optional · choose any airports</small></summary><div className="choice-list">{airportOptions.map(airport => <label key={airport.code}><input type="checkbox" checked={search.advanced?.excludedAirports.includes(airport.code) ?? false} onChange={e => updateAdvanced("excludedAirports", e.target.checked ? [...(search.advanced?.excludedAirports ?? []), airport.code] : (search.advanced?.excludedAirports ?? []).filter(code => code !== airport.code))} /><span>{airport.city} ({airport.code})</span></label>)}</div></details>
+              <label className="advanced-check"><input type="checkbox" checked={search.advanced?.lowEmissions ?? false} onChange={e => updateAdvanced("lowEmissions", e.target.checked)} /><span><strong>Show lower-emissions flights</strong><small>Filter for flights Google classifies as lower emissions on this route.</small></span></label>
+              <p className="canada-note">Basic Economy exclusion isn’t available for Canada market searches through this fare provider.</p>
+            </div>}
+          </section>
           <div className="form-bottom"><p>We’ll check selected return dates inside your window and show their live prices.</p><button className="search-button" type="submit" disabled={loading}>{loading ? <><span className="spinner" /> Looking for dates…</> : <>Find cheaper dates <ArrowIcon /></>}</button></div>
         </form>
       </section>
@@ -528,7 +561,7 @@ export default function Home() {
 
       {userEmail && <section className="saved-section">
         <div className="saved-heading"><div><span className="section-kicker">YOUR ACCOUNT</span><h2>Saved searches</h2></div><span className="saved-count">{saved.length} saved</span></div>
-        {saved.length === 0 ? <div className="saved-empty">Save a route and date window to find it here again.</div> : <div className="saved-list">{saved.map(item => <div className="saved-item" key={item.id}><button className="saved-restore" onClick={() => restoreSearch(item)}><span>{item.origin.split(" (")[0]} <i>→</i> {item.destination.split(" (")[0]}</span><small>{prettyRange(item.date_from, item.date_to)} · round trip</small></button><button className={`alert-pill ${item.price_alert_enabled ? "on" : "off"}`} onClick={() => toggleSavedAlert(item)} title="Turn fare alert preference on or off"><span /> {item.price_alert_enabled ? item.target_price ? `Alert preference · under $${item.target_price}` : "Alert preference on" : "Alert preference off"}</button><button className="delete-saved" onClick={() => removeSaved(item.id)} aria-label="Delete saved search">×</button></div>)}</div>}
+        {saved.length === 0 ? <div className="saved-empty">Save a route and date window to find it here again.</div> : <div className="saved-list">{saved.map(item => <div className="saved-item" key={item.id}><button className="saved-restore" onClick={() => restoreSearch(item)}><span>{item.origin.split(" (")[0]} <i>→</i> {item.destination.split(" (")[0]}</span><small>{prettyRange(item.date_from, item.date_to)} · round trip</small></button><button className="delete-saved" onClick={() => removeSaved(item.id)} aria-label="Delete saved search">×</button></div>)}</div>}
       </section>}
 
       <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-country">Made for Canadian travellers · CAD</span></footer>

@@ -1,4 +1,4 @@
-import type { FlightOffer, SearchInput } from "@/lib/types";
+import type { AdvancedFilters, FlightOffer, SearchInput } from "@/lib/types";
 
 type Candidate = { outboundDate: string; returnDate: string };
 type SerpFlightSegment = {
@@ -9,6 +9,8 @@ type SerpFlightSegment = {
 type SerpFlight = {
   flights?: SerpFlightSegment[];
   price?: number;
+  total_duration?: number;
+  carbon_emissions?: { this_flight?: number };
 };
 type SerpSearchResponse = {
   error?: string;
@@ -145,10 +147,13 @@ function flightTime(segment?: SerpFlightSegment) {
   return `${hour % 12 || 12}:${match[2]} ${hour < 12 ? "AM" : "PM"}`;
 }
 
+function timeValue(raw?: string) { return raw ? Date.parse(raw) || 0 : 0; }
+
 function mapFlights(data: SerpSearchResponse, input: SearchInput, candidate: Candidate): FlightOffer[] {
+  const advanced = input.advanced;
   const flights = [...(data.best_flights ?? []), ...(data.other_flights ?? [])]
     .filter(flight => Number.isFinite(flight.price) && (flight.price ?? 0) > 0)
-    .sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+    .sort((a, b) => sortFlights(a, b, advanced?.sortBy ?? 2));
   const cheapest = flights[0];
   if (!cheapest) return [];
 
@@ -169,15 +174,46 @@ function mapFlights(data: SerpSearchResponse, input: SearchInput, candidate: Can
     outboundTime: flightTime(segments[0]),
     outboundStops: Math.max(0, segments.length - 1),
     duration: totalDuration(cheapest),
+    arrivalTime: flightTime(segments.length ? { departure_airport: segments[segments.length - 1].arrival_airport } : undefined),
+    durationMinutes: cheapest.total_duration ?? segments.reduce((sum, segment) => sum + (segment.duration ?? 0), 0),
+    emissionsGrams: cheapest.carbon_emissions?.this_flight,
     source: "Google Flights",
     bookingUrl: googleLink.toString(),
   }];
 }
 
+function sortFlights(a: SerpFlight, b: SerpFlight, sortBy: number) {
+  if (sortBy === 1) return 0;
+  if (sortBy === 3) return (Date.parse(a.flights?.[0]?.departure_airport?.time ?? "") || 0) - (Date.parse(b.flights?.[0]?.departure_airport?.time ?? "") || 0);
+  if (sortBy === 4) return (Date.parse(a.flights?.[Math.max(0, (a.flights?.length ?? 1) - 1)]?.arrival_airport?.time ?? "") || 0) - (Date.parse(b.flights?.[Math.max(0, (b.flights?.length ?? 1) - 1)]?.arrival_airport?.time ?? "") || 0);
+  if (sortBy === 5) return (a.total_duration ?? Infinity) - (b.total_duration ?? Infinity);
+  if (sortBy === 6) return (a.carbon_emissions?.this_flight ?? Infinity) - (b.carbon_emissions?.this_flight ?? Infinity);
+  return (a.price ?? Infinity) - (b.price ?? Infinity);
+}
+
+function addAdvancedParams(url: URL, advanced?: AdvancedFilters) {
+  if (!advanced) return;
+  const stops = { any: "0", nonstop: "1", one: "2", two: "3" }[advanced.stops];
+  if (stops !== "0") url.searchParams.set("stops", stops);
+  if (advanced.carryOn > 0) url.searchParams.set("bags", String(advanced.carryOn));
+  if (advanced.airlines.length && advanced.airlineMode !== "any") {
+    url.searchParams.set(advanced.airlineMode === "include" ? "include_airlines" : "exclude_airlines", advanced.airlines.join(","));
+  }
+  if (Number(advanced.maxPrice) > 0) url.searchParams.set("max_price", String(Math.floor(Number(advanced.maxPrice))));
+  if (advanced.outboundTime) url.searchParams.set("outbound_times", `${advanced.outboundTime},${advanced.outboundTime}`);
+  if (advanced.returnTime) url.searchParams.set("return_times", `${advanced.returnTime},${advanced.returnTime}`);
+  if (advanced.maxDuration > 0) url.searchParams.set("max_duration", String(advanced.maxDuration));
+  if (advanced.layover) url.searchParams.set("layover_duration", advanced.layover);
+  if (advanced.excludedAirports.length) url.searchParams.set("exclude_conns", advanced.excludedAirports.join(","));
+  if (advanced.cabin > 1) url.searchParams.set("travel_class", String(advanced.cabin));
+  if (advanced.sortBy > 1) url.searchParams.set("sort_by", String(advanced.sortBy));
+  if (advanced.lowEmissions) url.searchParams.set("emissions", "1");
+}
+
 async function searchPair(input: SearchInput, candidate: Candidate, apiKey: string, cacheScope: string, monthlyCap: number): Promise<FlightOffer[]> {
   const origin = airportCode(input.origin)!;
   const destination = airportCode(input.destination)!;
-  const key = [cacheScope, origin, destination, candidate.outboundDate, candidate.returnDate, input.travellers].join("|");
+  const key = [cacheScope, origin, destination, candidate.outboundDate, candidate.returnDate, input.travellers, JSON.stringify(input.advanced ?? {})].join("|");
   const cached = responseCache.get(key);
   if (cached && cached.expiresAt > Date.now()) return cached.offers;
   const pending = inFlight.get(key);
@@ -203,6 +239,7 @@ async function searchPair(input: SearchInput, candidate: Candidate, apiKey: stri
     url.searchParams.set("currency", "CAD");
     url.searchParams.set("gl", "ca");
     url.searchParams.set("hl", "en");
+    addAdvancedParams(url, input.advanced);
     url.searchParams.set("api_key", apiKey);
 
     const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(25_000) });
@@ -253,7 +290,16 @@ export async function searchLiveOffers(input: SearchInput, batch: number, option
 
   const moreAvailable = !budgetReached && offset + candidates.length < allCandidates.length;
   return {
-    offers: offers.sort((a, b) => a.price - b.price),
+    offers: offers.sort((a, b) => {
+      switch (input.advanced?.sortBy) {
+        case 1: return 0;
+        case 3: return timeValue(`${a.departureDate} ${a.outboundTime}`) - timeValue(`${b.departureDate} ${b.outboundTime}`);
+        case 4: return timeValue(`${a.departureDate} ${a.arrivalTime ?? ""}`) - timeValue(`${b.departureDate} ${b.arrivalTime ?? ""}`);
+        case 5: return (a.durationMinutes ?? parseDuration(a.duration)) - (b.durationMinutes ?? parseDuration(b.duration));
+        case 6: return (a.emissionsGrams ?? Infinity) - (b.emissionsGrams ?? Infinity);
+        default: return a.price - b.price;
+      }
+    }),
     checked,
     totalCandidates: allCandidates.length,
     nextBatch: batch + 1,
@@ -261,4 +307,9 @@ export async function searchLiveOffers(input: SearchInput, batch: number, option
     budgetReached,
     usageRemaining,
   };
+}
+
+function parseDuration(value: string) {
+  const match = value.match(/(\d+)h\s*(\d+)m/);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : Infinity;
 }
