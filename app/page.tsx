@@ -647,6 +647,7 @@ export default function Home() {
           <span className="brand-mark"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span>
         </a>
         <div className="top-actions">
+          <a className="how-link" href="/how-it-works">How it works</a>
           <span className="market-pill"><span className="flag">CA</span> Canada · {search.currency}</span>
           {userEmail ? <div className="account-menu"><span className="user-dot">{userEmail.slice(0, 1).toUpperCase()}</span><button className="text-button" onClick={openProviderKeySettings}>API key</button><button className="text-button" onClick={signOut}>Sign out</button></div> : <button className="sign-in" onClick={() => { setAccountMessage(""); setAccountOpen(true); }}>Sign in <span>↗</span></button>}
         </div>
@@ -757,21 +758,6 @@ export default function Home() {
           const itemCurrency = item.search.currency ?? "CAD";
           return <details className="history-item" key={item.id}><summary><span className="history-route"><strong>{item.search.origin.split(" (")[0]} <i>→</i> {item.search.destination.split(" (")[0]}</strong><small>{prettyRange(item.search.dateFrom, item.search.dateTo)} · {new Date(item.searchedAt).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></span><span className="history-summary-price">{lowest === null ? "No fares found" : `From ${formatFare(lowest, itemCurrency)}`}</span></summary><div className="history-results">{item.offers.length ? <>{item.offers.map(offer => <div className="history-result" key={offer.id}><span><strong>{prettyDate(offer.departureDate)} → {prettyDate(offer.returnDate)}</strong><small>{offer.outboundTime} outbound · {offer.outboundStops === 0 ? "Non-stop" : `${offer.outboundStops} stop${offer.outboundStops === 1 ? "" : "s"}`} · {offer.duration}</small></span><b>{formatFare(offer.price, itemCurrency)}</b></div>)}<p>Checked {item.checked} of {item.total} possible date pairs.</p></> : <p>No fares were returned for this search.</p>}<button className="history-restore" onClick={() => restoreHistory(item)}>Show this previous result</button></div></details>;
         })}</div>}
-      </section>
-
-      <section className="mission-section" aria-labelledby="mission-heading">
-        <div className="mission-intro">
-          <span className="section-kicker">WHY FARE GLOW</span>
-          <h2 id="mission-heading">Have time off coming up? Find dates that may cost less.</h2>
-          <p>Tell Fare Glow when you can travel, where you want to go, and how long you want to stay. Compare the return fares found for selected dates, then decide what works for you.</p>
-        </div>
-        <ol className="mission-workflow" aria-label="How Fare Glow works">
-          <li className="mission-step"><span className="mission-number">1</span><div><h3>Choose your dates</h3><p>Pick the earliest and latest dates you could travel.</p></div><div className="mission-visual mission-dates" aria-hidden="true"><span>OCT</span><b>12</b><i>to</i><b>19</b></div></li>
-          <li className="mission-step"><span className="mission-number">2</span><div><h3>Choose a place and trip length</h3><p>Enter where you want to go and how many days you can be away.</p></div><div className="mission-visual mission-route" aria-hidden="true"><span>HOME</span><b>→</b><span>AWAY</span></div></li>
-          <li className="mission-step"><span className="mission-number">3</span><div><h3>Compare fares</h3><p>See the prices Fare Glow finds for selected return dates.</p></div><div className="mission-visual mission-price" aria-hidden="true"><span>RETURN FARE</span><b>Compare</b></div></li>
-        </ol>
-        <div className="mission-example"><strong>For example:</strong> If you have a week off in October and want to visit Lisbon, compare fares for return trips that fit your dates. If you find a lower fare, you could put the money saved toward another trip or something fun while you’re there.</div>
-        <p className="mission-audience"><strong>Who is it for?</strong> Anyone hoping to spend less by being flexible with flight dates: people planning vacation around work, families planning around school breaks, students, and budget-conscious travellers. Fares can change, and only the dates checked are compared.</p>
       </section>
 
       <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-api-usage">SerpApi requests left this month: <strong>{usageRemaining === null ? "run a search to check" : usageRemaining}</strong>{usageKeySource && <small> · using {usageKeySource}</small>}</span><span className="footer-country">Made for Canadian travellers · {search.currency}</span><span className="footer-credit">Dileep Kodira App</span></footer>
