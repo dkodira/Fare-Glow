@@ -472,6 +472,26 @@ export default function Home() {
     setAccountBusy(false);
   }
 
+  async function signInWithGoogle() {
+    setAccountBusy(true); setAccountMessage("");
+    const supabase = getSupabase();
+    if (!supabase) {
+      setAccountMessage("Connect Supabase first to enable Google sign-in.");
+      setAccountBusy(false);
+      return;
+    }
+    try {
+      const { error: authError } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
+      });
+      if (authError) throw authError;
+    } catch (reason) {
+      setAccountMessage(reason instanceof Error ? reason.message : "Google sign-in could not start. Please try again.");
+      setAccountBusy(false);
+    }
+  }
+
   async function signOut() {
     const supabase = getSupabase();
     if (supabase) await supabase.auth.signOut();
@@ -699,7 +719,7 @@ export default function Home() {
       <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-api-usage">SerpApi requests left this month: <strong>{usageRemaining === null ? "run a search to check" : usageRemaining}</strong>{usageKeySource && <small> · using {usageKeySource}</small>}</span><span className="footer-country">Made for Canadian travellers · CAD</span><span className="footer-credit">Dileep Kodira App</span></footer>
 
       {accountOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAccountOpen(false); }}><section className="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title"><button className="modal-close" onClick={() => setAccountOpen(false)} aria-label="Close">×</button><span className="modal-mark"><SparkIcon /></span><span className="section-kicker">FARE GLOW ACCOUNT</span><h2 id="account-title">Keep your dates close.</h2><p>Sign in to save searches to your account.</p>
-        {supabaseReady ? <form onSubmit={signIn}><label className="input-block"><span>EMAIL ADDRESS</span><div className="input-wrap"><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required /></div></label><button className="search-button modal-submit" type="submit" disabled={accountBusy}>{accountBusy ? "Sending link…" : "Email me a sign-in link"}<ArrowIcon /></button></form> : <div className="setup-note"><strong>Account connection needed</strong><span>Supabase account details are not set up yet. The setup guide explains how to switch on sign-in and saved searches.</span></div>}
+        {supabaseReady ? <><button className="google-signin" type="button" onClick={signInWithGoogle} disabled={accountBusy}><span className="google-mark" aria-hidden="true">G</span>{accountBusy ? "Connecting to Google…" : "Continue with Google"}</button><div className="auth-divider"><span>or sign in with email</span></div><form onSubmit={signIn}><label className="input-block"><span>EMAIL ADDRESS</span><div className="input-wrap"><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required /></div></label><button className="search-button modal-submit" type="submit" disabled={accountBusy}>{accountBusy ? "Sending link…" : "Email me a sign-in link"}<ArrowIcon /></button></form></> : <div className="setup-note"><strong>Account connection needed</strong><span>Supabase account details are not set up yet. The setup guide explains how to switch on sign-in and saved searches.</span></div>}
         {accountMessage && <p className="account-message" role="status">{accountMessage}</p>}<small className="privacy-note">A password isn’t needed. We’ll send a secure one-time link.</small>
       </section></div>}
       {providerKeyOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setProviderKeyOpen(false); }}><section className="account-modal" role="dialog" aria-modal="true" aria-labelledby="provider-key-title"><button className="modal-close" onClick={() => setProviderKeyOpen(false)} aria-label="Close">×</button><span className="modal-mark"><SparkIcon /></span><span className="section-kicker">YOUR FLIGHT SEARCHES</span><h2 id="provider-key-title">Connect your SerpApi key.</h2><p>{byokMode ? "Use your own SerpApi account. Its free plan includes up to 250 searches per month; Fare Glow shows the remaining allowance and stops at 250." : "Optionally use your own SerpApi key for your searches. Without one, Fare Glow uses the app's shared key."}</p>{!providerKeyConfigured && <div className="setup-note api-key-help"><strong>Get your key in 3 quick steps</strong><span>1. <a href="https://serpapi.com/manage-api-key" target="_blank" rel="noreferrer">Open your SerpApi API key page ↗</a> and sign in, or <a href="https://serpapi.com/users/sign_up" target="_blank" rel="noreferrer">create a SerpApi account ↗</a>.</span><span>2. On SerpApi, click or tap <b>Copy</b> next to your API key.</span><span>3. Return here, select the box below, paste your key, then tap <b>Save key</b>.</span><span className="paste-hint">Computer: ⌘V on Mac or Ctrl+V on Windows. Phone/tablet: press and hold the box, then tap Paste.</span></div>}{providerKeyConfigured && <div className="setup-note"><strong>SerpApi key connected</strong><span>{providerKeyUsage === null ? "Your key is saved and hidden." : `${providerKeyUsage} searches remain in this month's allowance.`} The key is encrypted on the server and never shown again.</span></div>}<form onSubmit={updateProviderKey}><label className="input-block"><span>{providerKeyConfigured ? "REPLACE KEY" : "PASTE YOUR SERPAPI KEY"}</span><div className="input-wrap"><input type="password" autoComplete="new-password" value={providerKeyValue} onChange={event => setProviderKeyValue(event.target.value)} placeholder={providerKeyConfigured ? "Paste a replacement key" : "Tap here, then paste your key"} required /></div></label><button className="search-button modal-submit" type="submit" disabled={providerKeyBusy}>{providerKeyBusy ? "Checking and saving…" : providerKeyConfigured ? "Replace key" : "Save key"}<ArrowIcon /></button></form>{providerKeyConfigured && <button className="text-button remove-provider-key" onClick={removeProviderKey} disabled={providerKeyBusy}>Remove saved key</button>}{providerKeyMessage && <p className="account-message" role="status">{providerKeyMessage}</p>}<small className="privacy-note">Your SerpApi key is encrypted and hidden after saving. <a href="https://serpapi.com/manage-api-key" target="_blank" rel="noreferrer">Manage your SerpApi key</a></small></section></div>}
