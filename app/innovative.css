@@ -1,0 +1,202 @@
+/* Fare Glow visual refresh: luminous night-sky palette, clearer hierarchy, and responsive flight-search surfaces. */
+:root {
+  --ink: #142b3a;
+  --muted: #6f818a;
+  --green: #123e46;
+  --green-dark: #0d3038;
+  --mint: #a9e8cb;
+  --lime: #d5fb72;
+  --paper: #f3f7f7;
+  --white: #fff;
+  --line: #dfe9e8;
+  --soft: #eaf2ef;
+  --gold: #f5c66a;
+  --rose: #f2d0bd;
+  --shadow: 0 22px 65px rgba(13, 43, 57, .11);
+}
+
+body {
+  color: var(--ink);
+  background-color: var(--paper);
+  background-image: radial-gradient(ellipse at 90% 6%, rgba(167, 227, 208, .22), transparent 30%), linear-gradient(180deg, #f7f9f9 0%, #f0f5f4 100%);
+}
+
+.shell { max-width: 1220px; }
+.topbar { height: 78px; border-color: rgba(20, 43, 58, .09); }
+.brand { color: #112e3c; }
+.brand-glow { color: #16816e; }
+.brand-mark { background: #123e46; color: var(--lime); box-shadow: 0 7px 18px rgba(18, 62, 70, .22); }
+.top-actions { gap: 14px; }
+.how-link { padding: 10px 12px; border-radius: 999px; color: #315b60; transition: background .2s, color .2s; }
+.how-link:hover { background: #e4efec; color: #123e46; }
+.market-pill { background: rgba(255,255,255,.78); border: 1px solid #e0e9e7; color: #52676d; box-shadow: 0 4px 14px rgba(20,43,58,.04); }
+.flag { color: #cc4651; }
+.sign-in,.text-button { color: #16705e; }
+.sign-in { border-radius: 999px; padding: 10px 15px; }
+.sign-in:hover { background: #e6f1ec; }
+
+.hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-height: 304px;
+  align-items: center;
+  margin: 28px 0 17px;
+  padding: 49px 54px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 28px;
+  background: linear-gradient(116deg, #10263c 0%, #123e4a 53%, #17614f 100%);
+  box-shadow: 0 24px 60px rgba(13, 43, 57, .2);
+}
+.hero:before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 390px;
+  height: 390px;
+  top: -166px;
+  right: 6%;
+  border: 1px solid rgba(201, 246, 183, .24);
+  border-radius: 50%;
+  box-shadow: 0 0 0 36px rgba(201, 246, 183, .035), 0 0 0 78px rgba(201, 246, 183, .035), inset 0 0 80px rgba(201, 246, 183, .09);
+}
+.hero:after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 220px;
+  height: 220px;
+  right: 17%;
+  bottom: -155px;
+  border-radius: 50%;
+  background: rgba(204, 249, 128, .72);
+  filter: blur(70px);
+}
+.hero-copy { position: relative; z-index: 1; max-width: 660px; }
+.eyebrow,.section-kicker { color: #668477; }
+.hero .eyebrow { color: #b8ddce; }
+.eyebrow-dot { background: #d5fb72; box-shadow: 0 0 0 5px rgba(213,251,114,.12), 0 0 18px rgba(213,251,114,.7); }
+.hero h1 { color: #f4fbf7; font-size: clamp(43px, 6.2vw, 70px); letter-spacing: -4px; }
+.hero h1 span { color: #d5fb72; }
+.hero-copy p { max-width: 470px; color: #c4d6d7; font-size: 14px; }
+.hero-stamp {
+  position: relative;
+  z-index: 1;
+  gap: 12px;
+  margin: 72px 2px 0 22px;
+  padding: 15px 18px;
+  border: 1px solid rgba(226, 246, 227, .21);
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  color: #e0f3e6;
+  backdrop-filter: blur(12px);
+  box-shadow: inset 0 1px rgba(255,255,255,.12);
+}
+.hero-stamp i { color: #d5fb72; }
+
+.demo-banner { margin: 0 0 12px; padding: 13px 16px; border-color: #eddfbd; border-radius: 14px; background: #fffaf0; box-shadow: 0 5px 18px rgba(91,71,24,.035); }
+.booking-tip { border: 1px solid #dcebe2; border-left: 3px solid #24a47f; border-radius: 12px; background: #eaf5ef; }
+.booking-tip-controls button { border-color: #d7e6dc; border-radius: 999px; }
+.search-card {
+  position: relative;
+  margin-top: 18px;
+  padding: 29px 30px 23px;
+  border: 1px solid rgba(216, 230, 226, .95);
+  border-radius: 24px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 20px 55px rgba(21, 54, 60, .09), 0 2px 8px rgba(21,54,60,.03);
+}
+.card-heading h2,.results-title-row h2,.saved-heading h2 { color: #172f3c; }
+.section-kicker { letter-spacing: 1.35px; }
+.round-trip { border: 1px solid #d4ebdb; background: #eaf6ed; color: #247455; }
+.input-wrap { background: #f8fbfa; border-color: #dce7e4; border-radius: 12px; }
+.input-wrap:focus-within { border-color: #35a786; box-shadow: 0 0 0 4px rgba(53,167,134,.12); }
+.input-wrap input,.input-wrap select { color: #183842; }
+.swap-button { border-color: #d5e5df; color: #277765; box-shadow: 0 4px 12px rgba(23,80,73,.06); }
+.swap-button:hover { border-color: #a7d2bf; background: #e8f5ed; }
+.date-range-picker { background: #f8fbfa; border-color: #dce7e4; border-radius: 12px; }
+.currency-row>small { color: #72858a; }
+.advanced-search { border-color: #e0e9e6; border-radius: 14px; background: #fbfcfc; }
+.advanced-toggle:hover { background: #f2f7f4; }
+.search-button { background: linear-gradient(110deg, #123e46, #176c5b); box-shadow: 0 8px 20px rgba(18,86,75,.2); }
+.search-button:hover { background: linear-gradient(110deg, #0d3038, #145847); box-shadow: 0 11px 24px rgba(18,86,75,.24); }
+.save-button { border-color: #cfe1d8; color: #17715d; border-radius: 999px; }
+.save-button:hover { border-color: #a7cfb9; background: #eff8f1; }
+
+.results-section { padding-top: 48px; }
+.results-title-row h2 { font-size: 29px; }
+.route-arrow { color: #1fa17e; }
+.fare-summary { border-color: #cde8d7; background: linear-gradient(110deg, #e6f7ea, #eff9e5); border-radius: 17px; }
+.summary-icon { background: #d2efdc; color: #19765d; }
+.fare-summary strong { color: #123e46; }
+.legend-dot.best { background: #27ae7e; box-shadow: 0 0 0 3px #dff4e5; }
+.offer-card { border-color: #e2eae6; border-radius: 17px; box-shadow: 0 8px 24px rgba(21,54,60,.045); transition: transform .18s, box-shadow .18s, border-color .18s; }
+.offer-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(21,54,60,.09); border-color: #c8ded2; }
+.offer-card.tier-best { background: linear-gradient(135deg, #fff 20%, #f2fbf2); border-color: #d1e8d4; }
+.offer-card:before { width: 4px; }
+.tier-best:before { background: linear-gradient(180deg, #26b883, #a6da68); }
+.best-tag { color: #167654; }
+.offer-price strong,.tier-best .offer-price strong { color: #12634e; }
+.offer-footnote a { color: #1c7b68; font-weight: 700; }
+.offer-footnote a:hover { text-decoration: underline; }
+.history-item,.saved-item { border-color: #e0e9e6; border-radius: 15px; box-shadow: 0 5px 17px rgba(21,54,60,.035); }
+.history-item>summary:hover { background: #f7faf8; }
+.saved-section,.history-section { border-color: #dce6e3; }
+.footer { border-color: #dce6e3; }
+.footer-brand { color: #183440; }
+
+/* Separate explainer page */
+.how-page {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  max-width: none;
+  margin: 36px 0 0;
+  padding: 48px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 27px;
+  background: linear-gradient(116deg, #10263c, #123e4a 56%, #17614f);
+  box-shadow: 0 22px 55px rgba(13,43,57,.17);
+}
+.how-page:after { content: ""; position: absolute; z-index: -1; width: 310px; height: 310px; right: -80px; top: -150px; border: 1px solid rgba(213,251,114,.22); border-radius: 50%; box-shadow: 0 0 0 35px rgba(213,251,114,.04), 0 0 0 75px rgba(213,251,114,.035); }
+.how-page .section-kicker { color: #b8ddce; }
+.how-page .mission-intro h1 { color: #f4fbf7; }
+.how-page .mission-intro>p { color: #c4d6d7; }
+.how-page .mission-workflow { gap: 14px; }
+.how-page .mission-step { min-height: 195px; border-color: #e0eae6; border-radius: 17px; box-shadow: 0 8px 24px rgba(5,30,38,.08); }
+.how-page .mission-step h2 { color: #183842; }
+.how-page .mission-step p { color: #718187; }
+.how-page .mission-number { background: #e8f6e8; color: #167654; }
+.how-page .mission-example { border-left-color: #32aa81; border-radius: 0 12px 12px 0; background: rgba(255,255,255,.92); }
+.how-page .mission-audience { color: #d5e3df; }
+.how-page .mission-audience strong { color: #d5fb72; }
+
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible { outline: 3px solid #43b596; outline-offset: 3px; }
+::selection { background: #c8f18e; color: #15343c; }
+
+@media (max-width: 760px) {
+  .topbar { height: 68px; }
+  .top-actions { gap: 3px; }
+  .how-link { padding: 8px 7px; font-size: 9px; }
+  .market-pill { padding: 7px 8px; }
+  .hero { min-height: 285px; margin: 18px 0 13px; padding: 34px 25px; border-radius: 23px; align-items: flex-start; flex-direction: column; justify-content: center; gap: 22px; }
+  .hero:before { width: 290px; height: 290px; top: -130px; right: -100px; }
+  .hero:after { right: -5%; bottom: -180px; }
+  .hero h1 { font-size: clamp(39px, 10vw, 52px); letter-spacing: -2.8px; }
+  .hero-copy p { max-width: 330px; font-size: 13px; }
+  .hero-stamp { margin: 0; padding: 10px 14px; font-size: 8px; }
+  .search-card { margin-top: 14px; padding: 20px 17px 16px; border-radius: 19px; }
+  .results-section { padding-top: 35px; }
+  .results-title-row h2 { font-size: 23px; }
+  .fare-summary { border-radius: 14px; }
+  .offer-card:hover { transform: none; }
+  .how-page { margin-top: 22px; padding: 29px 20px; border-radius: 22px; }
+  .how-page .mission-intro h1 { font-size: 25px; letter-spacing: -1.1px; }
+  .how-page .mission-workflow { gap: 9px; }
+  .how-page .mission-step { min-height: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero:before { animation: orbit-glow 11s ease-in-out infinite alternate; }
+  @keyframes orbit-glow { from { transform: translate3d(-7px, 0, 0) rotate(-4deg); } to { transform: translate3d(7px, 8px, 0) rotate(4deg); } }
+}
