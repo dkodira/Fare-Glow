@@ -759,6 +759,21 @@ export default function Home() {
         })}</div>}
       </section>
 
+      <section className="mission-section" aria-labelledby="mission-heading">
+        <div className="mission-intro">
+          <span className="section-kicker">WHY FARE GLOW</span>
+          <h2 id="mission-heading">Have time off coming up? Find dates that may cost less.</h2>
+          <p>Tell Fare Glow when you can travel, where you want to go, and how long you want to stay. Compare the return fares found for selected dates, then decide what works for you.</p>
+        </div>
+        <ol className="mission-workflow" aria-label="How Fare Glow works">
+          <li className="mission-step"><span className="mission-number">1</span><div><h3>Choose your dates</h3><p>Pick the earliest and latest dates you could travel.</p></div><div className="mission-visual mission-dates" aria-hidden="true"><span>OCT</span><b>12</b><i>to</i><b>19</b></div></li>
+          <li className="mission-step"><span className="mission-number">2</span><div><h3>Choose a place and trip length</h3><p>Enter where you want to go and how many days you can be away.</p></div><div className="mission-visual mission-route" aria-hidden="true"><span>HOME</span><b>→</b><span>AWAY</span></div></li>
+          <li className="mission-step"><span className="mission-number">3</span><div><h3>Compare fares</h3><p>See the prices Fare Glow finds for selected return dates.</p></div><div className="mission-visual mission-price" aria-hidden="true"><span>RETURN FARE</span><b>Compare</b></div></li>
+        </ol>
+        <div className="mission-example"><strong>For example:</strong> If you have a week off in October and want to visit Lisbon, compare fares for return trips that fit your dates. If you find a lower fare, you could put the money saved toward another trip or something fun while you’re there.</div>
+        <p className="mission-audience"><strong>Who is it for?</strong> Anyone hoping to spend less by being flexible with flight dates: people planning vacation around work, families planning around school breaks, students, and budget-conscious travellers. Fares can change, and only the dates checked are compared.</p>
+      </section>
+
       <footer className="footer"><div className="footer-brand"><span className="brand-mark small"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-api-usage">SerpApi requests left this month: <strong>{usageRemaining === null ? "run a search to check" : usageRemaining}</strong>{usageKeySource && <small> · using {usageKeySource}</small>}</span><span className="footer-country">Made for Canadian travellers · {search.currency}</span><span className="footer-credit">Dileep Kodira App</span></footer>
 
       {accountOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setAccountOpen(false); }}><section className="account-modal" role="dialog" aria-modal="true" aria-labelledby="account-title"><button className="modal-close" onClick={() => setAccountOpen(false)} aria-label="Close">×</button><span className="modal-mark"><SparkIcon /></span><span className="section-kicker">FARE GLOW ACCOUNT</span><h2 id="account-title">Keep your dates close.</h2><p>Sign in to save searches to your account.</p>
