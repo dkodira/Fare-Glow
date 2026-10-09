@@ -7,6 +7,14 @@ import type { AdvancedFilters, FlightOffer, SearchInput } from "@/lib/types";
 type SavedSearch = { id: string; origin: string; destination: string; date_from: string; date_to: string; min_nights: number; max_nights: number; travellers: number };
 type SearchHistoryItem = { id: string; searchedAt: string; search: SearchInput; offers: FlightOffer[]; checked: number; total: number };
 const HISTORY_STORAGE_KEY = "fare-glow-search-history-v1";
+const bookingTips = [
+  { title: "Tuesday booking myth:", text: "Google’s 2025 U.S. data found booking on Tuesday averaged just 1.3% less than Sunday. Search whenever it suits you." },
+  { title: "Your travel day matters more.", text: "In that same U.S. data, Monday–Wednesday flights averaged about 13% less than weekend flights. Your route and season may differ." },
+  { title: "Consider a connection.", text: "Layovers can reduce fares on average. Compare the savings with the longer trip and any extra airport costs." },
+  { title: "Compare the full price.", text: "Add baggage and seat-selection fees before choosing. A low starting fare may not be the lowest total." },
+  { title: "Treat fares as snapshots.", text: "Prices and seat availability can change. Confirm the exact return itinerary and total with the booking site before paying." },
+  { title: "Search more dates for a wider view.", text: "Fare Glow checks up to 8 return date pairs per batch. Use “Check more dates” to compare additional options." },
+];
 
 const today = new Date();
 const addDays = (date: Date, count: number) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + count);
@@ -258,6 +266,8 @@ function tripDaysInclusive(from: string, to: string) {
 
 export default function Home() {
   const [search, setSearch] = useState<SearchInput>(defaultSearch);
+  const [bookingTipIndex, setBookingTipIndex] = useState(0);
+  const [bookingTipsPaused, setBookingTipsPaused] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [airlineQuery, setAirlineQuery] = useState("");
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
@@ -289,6 +299,14 @@ export default function Home() {
   const [providerKeyBusy, setProviderKeyBusy] = useState(false);
   const supabaseReady = hasSupabaseConfig();
   const byokMode = process.env.NEXT_PUBLIC_SERPAPI_KEY_MODE === "byok";
+
+  useEffect(() => {
+    if (bookingTipsPaused) return;
+    const timer = window.setInterval(() => {
+      setBookingTipIndex(index => (index + 1) % bookingTips.length);
+    }, 10_000);
+    return () => window.clearInterval(timer);
+  }, [bookingTipIndex, bookingTipsPaused]);
 
   useEffect(() => {
     try {
@@ -634,6 +652,16 @@ export default function Home() {
       </section>
 
       <div className="demo-banner"><span className="demo-icon">i</span><span><strong>Fare searches check a few dates at a time.</strong> Each batch checks up to eight return date pairs. Use “Check more dates” to expand the search while keeping API use low.</span></div>
+
+      <section className="booking-tip" aria-label="Airfare tips">
+        <p className="booking-tip-copy" aria-live="polite" aria-atomic="true"><strong>{bookingTips[bookingTipIndex].title}</strong> {bookingTips[bookingTipIndex].text}</p>
+        <div className="booking-tip-controls">
+          <span className="booking-tip-count" aria-label={`Tip ${bookingTipIndex + 1} of ${bookingTips.length}`}>{bookingTipIndex + 1} / {bookingTips.length}</span>
+          <button type="button" onClick={() => setBookingTipIndex(index => (index - 1 + bookingTips.length) % bookingTips.length)} aria-label="Previous airfare tip">‹ Previous</button>
+          <button type="button" onClick={() => setBookingTipsPaused(paused => !paused)} aria-label={bookingTipsPaused ? "Resume rotating airfare tips" : "Pause rotating airfare tips"}>{bookingTipsPaused ? "Resume" : "Pause"}</button>
+          <button type="button" onClick={() => setBookingTipIndex(index => (index + 1) % bookingTips.length)} aria-label="Next airfare tip">Next ›</button>
+        </div>
+      </section>
 
       <section className="search-card" aria-labelledby="search-heading">
         <div className="card-heading">
