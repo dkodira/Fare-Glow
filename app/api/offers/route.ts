@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     if (keyMode === "byok") {
       const identity = await authenticateRequest(request);
       if (!identity) return NextResponse.json({ error: "Sign in to check your SerpApi allowance." }, { status: 401 });
-      apiKey = await getStoredSerpApiKey(identity.admin, identity.user.id);
+      apiKey = (await getStoredSerpApiKey(identity.admin, identity.user.id)) ?? undefined;
       monthlyCap = 250;
       keySource = "your SerpApi key";
       if (!apiKey) return NextResponse.json({ error: "Add your SerpApi key to check its monthly allowance." }, { status: 403 });
