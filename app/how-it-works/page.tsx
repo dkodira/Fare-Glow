@@ -1,11 +1,14 @@
+import { LocalizedContent } from "@/components/LocaleProvider";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+
 export default function HowItWorksPage() {
   return (
-    <main className="shell">
+    <main className="shell"><LocalizedContent>
       <header className="topbar">
         <a className="brand" href="/" aria-label="Fare Glow home">
           <span className="brand-mark" aria-hidden="true">✦</span><span>Fare <span className="brand-glow">Glow</span></span>
         </a>
-        <div className="top-actions"><a className="how-link" href="/feedback">Feedback</a><a className="sign-in" href="/">Find fares <span>↗</span></a></div>
+        <div className="top-actions"><LanguageSwitcher /><a className="how-link" href="/feedback">Feedback</a><a className="sign-in" href="/">Find fares <span>↗</span></a></div>
       </header>
 
       <section className="mission-section how-page" aria-labelledby="mission-heading">
@@ -24,6 +27,6 @@ export default function HowItWorksPage() {
       </section>
 
       <footer className="footer"><div className="footer-brand"><span className="brand-mark small" aria-hidden="true">✦</span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-country"><a href="/feedback">Community feedback</a> · <a href="/">Back to flight search</a></span><span className="footer-credit">Dileep Kodira App</span></footer>
-    </main>
+    </LocalizedContent></main>
   );
 }

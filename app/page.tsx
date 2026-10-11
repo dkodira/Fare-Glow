@@ -4,6 +4,9 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { getSupabase, hasSupabaseConfig } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
 import { FARE_CURRENCIES, type AdvancedFilters, type FareCurrency, type FlightOffer, type SearchInput } from "@/lib/types";
+import { LocalizedContent, useLocale } from "@/components/LocaleProvider";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { formatLocale, type Locale } from "@/lib/i18n";
 
 type SavedSearch = { id: string; origin: string; destination: string; date_from: string; date_to: string; min_nights: number; max_nights: number; travellers: number };
 type SearchHistoryItem = { id: string; searchedAt: string; search: SearchInput; offers: FlightOffer[]; checked: number; total: number };
@@ -207,7 +210,7 @@ function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
     setActiveIndex(-1);
   }
 
-  return <div className="input-block airport-field">
+  return <LocalizedContent><div className="input-block airport-field">
     <span>{label}</span>
     <div className="airport-autocomplete">
       <div className="input-wrap">
@@ -241,6 +244,7 @@ function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
           id={`${listId}-${airport.code}`}
           key={airport.code}
           role="option"
+          data-no-translate="true"
           aria-selected={index === activeIndex}
           onClick={() => chooseAirport(airport)}
         >
@@ -250,7 +254,7 @@ function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
         <a className="airport-data-credit" href="https://ourairports.com/data/" target="_blank" rel="noreferrer">Worldwide airport directory · OurAirports</a>
       </div>}
     </div>
-  </div>;
+  </div></LocalizedContent>;
 }
 
 function CalendarIcon() {
@@ -263,19 +267,19 @@ function SparkIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/></svg>;
 }
 
-function prettyDate(value: string) {
+function prettyDate(value: string, locale: Locale) {
   if (!value) return "—";
-  return new Date(`${value}T12:00:00`).toLocaleDateString("en-CA", { month: "short", day: "numeric" });
+  return new Date(`${value}T12:00:00`).toLocaleDateString(formatLocale(locale), { month: "short", day: "numeric" });
 }
 
-function formatFare(amount: number, currency: FareCurrency) {
-  return `${currency} ${new Intl.NumberFormat("en-CA", { maximumFractionDigits: 0 }).format(amount)}`;
+function formatFare(amount: number, currency: FareCurrency, locale: Locale) {
+  return `${currency} ${new Intl.NumberFormat(formatLocale(locale), { maximumFractionDigits: 0 }).format(amount)}`;
 }
 
-function prettyRange(from: string, to: string) {
+function prettyRange(from: string, to: string, locale: Locale) {
   const start = new Date(`${from}T12:00:00`);
   const end = new Date(`${to}T12:00:00`);
-  return `${start.toLocaleDateString("en-CA", { month: "short", day: "numeric" })} – ${end.toLocaleDateString("en-CA", { month: "short", day: "numeric" })}`;
+  return `${start.toLocaleDateString(formatLocale(locale), { month: "short", day: "numeric" })} – ${end.toLocaleDateString(formatLocale(locale), { month: "short", day: "numeric" })}`;
 }
 
 function tripDaysInclusive(from: string, to: string) {
@@ -283,6 +287,7 @@ function tripDaysInclusive(from: string, to: string) {
 }
 
 export default function Home() {
+  const { locale } = useLocale();
   const [search, setSearch] = useState<SearchInput>(defaultSearch);
   const [bookingTipIndex, setBookingTipIndex] = useState(0);
   const [bookingTipsPaused, setBookingTipsPaused] = useState(false);
@@ -737,12 +742,13 @@ export default function Home() {
   }
 
   return (
-    <main className="shell">
+    <main className="shell"><LocalizedContent>
       <header className="topbar">
         <a className="brand" href="#top" aria-label="Fare Glow home">
           <span className="brand-mark"><SparkIcon /></span><span>Fare <span className="brand-glow">Glow</span></span>
         </a>
         <div className="top-actions">
+          <LanguageSwitcher />
           <a className="how-link" href="/how-it-works">How it works</a>
           <a className="feedback-nav" href="/feedback">Feedback</a>
           {userEmail ? <div className="account-menu"><span className="user-dot">{userEmail.slice(0, 1).toUpperCase()}</span><button className="text-button" onClick={openProviderKeySettings}>API key</button><button className="text-button" onClick={signOut}>Sign out</button></div> : <button className="sign-in" onClick={() => { setAccountMessage(""); setAccountOpen(true); }}>Sign in <span>↗</span></button>}
@@ -817,20 +823,20 @@ export default function Home() {
       </section>
 
       {searched && <section className="results-section" aria-live="polite">
-        <div className="results-title-row"><div><span className="section-kicker">YOUR FARE WINDOW</span><h2>{search.origin.split(" (")[0]} <span className="route-arrow">→</span> {search.destination.split(" (")[0]}</h2><p>{prettyRange(search.dateFrom, search.dateTo)} · return trips · {search.currency}</p></div>
+        <div className="results-title-row"><div><span className="section-kicker">YOUR FARE WINDOW</span><h2>{search.origin.split(" (")[0]} <span className="route-arrow">→</span> {search.destination.split(" (")[0]}</h2><p>{prettyRange(search.dateFrom, search.dateTo, locale)} · return trips · {search.currency}</p></div>
           {offers.length > 0 && <button className="save-button" onClick={saveSearch} disabled={saveBusy}><span>＋</span> {saveBusy ? "Saving…" : "Save search"}</button>}
         </div>
         {loading && <div className="loading-panel"><span className="spinner spinner-dark" /> Checking available dates…</div>}
         {!loading && error && <div className="empty-panel"><span className="empty-spark"><SparkIcon /></span><strong>{error}</strong><span>Try adjusting the range or trip length.</span></div>}
         {!loading && offers.length > 0 && <>
-          <div className="fare-summary"><div className="summary-icon"><SparkIcon /></div><div><span>LOWEST RETURN FARE FOUND</span><strong>{formatFare(cheapest, search.currency)}</strong></div><p>Checked {checkedPairs} of {totalPairs} possible date pairs{usageRemaining !== null ? ` · ${usageRemaining} API searches left in this budget` : ""}</p></div>
+          <div className="fare-summary"><div className="summary-icon"><SparkIcon /></div><div><span>LOWEST RETURN FARE FOUND</span><strong>{formatFare(cheapest, search.currency, locale)}</strong></div><p>Checked {checkedPairs} of {totalPairs} possible date pairs{usageRemaining !== null ? ` · ${usageRemaining} API searches left in this budget` : ""}</p></div>
           <div className="legend-row"><span className="legend-label">DATE PAIRS BY PRICE</span><span><i className="legend-dot best" /> Lowest</span><span><i className="legend-dot good" /> Good value</span><span><i className="legend-dot other" /> Other fares</span></div>
           <div className="offer-list">
             {offers.map((offer, index) => <article key={offer.id} className={`offer-card tier-${index < 2 ? "best" : index < 4 ? "good" : "other"}`}>
               <div className="offer-rank">{index === 0 ? <span className="best-tag"><SparkIcon /> LOWEST</span> : <span className="rank-label">OPTION {String(index + 1).padStart(2, "0")}</span>}<span className="offer-source">{offer.source}</span></div>
               <div className="offer-main">
-                <div className="date-pair"><div><span>GO</span><strong>{prettyDate(offer.departureDate)}</strong><small>{offer.outboundTime}</small></div><div className="pair-connector"><span /><ArrowIcon /><span /></div><div><span>RETURN</span><strong>{prettyDate(offer.returnDate)}</strong><small>Round trip date</small></div></div>
-              <div className="offer-price"><strong>{formatFare(offer.price, search.currency)}</strong><span>{search.travellers} {search.travellers === 1 ? "traveler" : "travelers"}</span></div>
+                <div className="date-pair"><div><span>GO</span><strong>{prettyDate(offer.departureDate, locale)}</strong><small>{offer.outboundTime}</small></div><div className="pair-connector"><span /><ArrowIcon /><span /></div><div><span>RETURN</span><strong>{prettyDate(offer.returnDate, locale)}</strong><small>Round trip date</small></div></div>
+              <div className="offer-price"><strong>{formatFare(offer.price, search.currency, locale)}</strong><span>{search.travellers} {search.travellers === 1 ? "traveler" : "travelers"}</span></div>
               </div>
               <div className="offer-details"><span>{offer.outboundStops === 0 ? "Non-stop outbound" : `${offer.outboundStops} stop${offer.outboundStops === 1 ? "" : "s"} outbound`}</span><span>{offer.duration} outbound</span><span>{tripDaysInclusive(offer.departureDate, offer.returnDate)} days including departure</span></div>
               <div className="offer-footnote"><a href={offer.bookingUrl} target="_blank" rel="noreferrer">Check these dates on Google Flights ↗</a> · final fare and return itinerary confirmed there</div>
@@ -844,7 +850,7 @@ export default function Home() {
 
       {userEmail && <section className="saved-section">
         <div className="saved-heading"><div><span className="section-kicker">YOUR ACCOUNT</span><h2>Saved searches</h2></div><span className="saved-count">{saved.length} saved</span></div>
-        {saved.length === 0 ? <div className="saved-empty">Save a route and date window to find it here again.</div> : <div className="saved-list">{saved.map(item => <div className="saved-item" key={item.id}><button className="saved-restore" onClick={() => restoreSearch(item)}><span>{item.origin.split(" (")[0]} <i>→</i> {item.destination.split(" (")[0]}</span><small>{prettyRange(item.date_from, item.date_to)} · round trip</small></button><button className="delete-saved" onClick={() => removeSaved(item.id)} aria-label="Delete saved search">×</button></div>)}</div>}
+        {saved.length === 0 ? <div className="saved-empty">Save a route and date window to find it here again.</div> : <div className="saved-list">{saved.map(item => <div className="saved-item" key={item.id}><button className="saved-restore" onClick={() => restoreSearch(item)}><span>{item.origin.split(" (")[0]} <i>→</i> {item.destination.split(" (")[0]}</span><small>{prettyRange(item.date_from, item.date_to, locale)} · round trip</small></button><button className="delete-saved" onClick={() => removeSaved(item.id)} aria-label="Delete saved search">×</button></div>)}</div>}
       </section>}
 
       <section className="history-section" aria-labelledby="history-heading">
@@ -853,7 +859,7 @@ export default function Home() {
         {searchHistory.length === 0 ? <div className="saved-empty">Your searches and the fares found will appear here.</div> : <div className="history-list">{searchHistory.map(item => {
           const lowest = item.offers.length ? Math.min(...item.offers.map(offer => offer.price)) : null;
           const itemCurrency = item.search.currency ?? "CAD";
-          return <details className="history-item" key={item.id}><summary><span className="history-route"><strong>{item.search.origin.split(" (")[0]} <i>→</i> {item.search.destination.split(" (")[0]}</strong><small>{prettyRange(item.search.dateFrom, item.search.dateTo)} · {new Date(item.searchedAt).toLocaleString("en-CA", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></span><span className="history-summary-price">{lowest === null ? "No fares found" : `From ${formatFare(lowest, itemCurrency)}`}</span></summary><div className="history-results">{item.offers.length ? <>{item.offers.map(offer => <div className="history-result" key={offer.id}><span><strong>{prettyDate(offer.departureDate)} → {prettyDate(offer.returnDate)}</strong><small>{offer.outboundTime} outbound · {offer.outboundStops === 0 ? "Non-stop" : `${offer.outboundStops} stop${offer.outboundStops === 1 ? "" : "s"}`} · {offer.duration}</small></span><b>{formatFare(offer.price, itemCurrency)}</b></div>)}<p>Checked {item.checked} of {item.total} possible date pairs.</p></> : <p>No fares were returned for this search.</p>}<button className="history-restore" onClick={() => restoreHistory(item)}>Show this previous result</button></div></details>;
+          return <details className="history-item" key={item.id}><summary><span className="history-route"><strong>{item.search.origin.split(" (")[0]} <i>→</i> {item.search.destination.split(" (")[0]}</strong><small>{prettyRange(item.search.dateFrom, item.search.dateTo, locale)} · {new Date(item.searchedAt).toLocaleString(formatLocale(locale), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small></span><span className="history-summary-price">{lowest === null ? "No fares found" : `From ${formatFare(lowest, itemCurrency, locale)}`}</span></summary><div className="history-results">{item.offers.length ? <>{item.offers.map(offer => <div className="history-result" key={offer.id}><span><strong>{prettyDate(offer.departureDate, locale)} → {prettyDate(offer.returnDate, locale)}</strong><small>{offer.outboundTime} outbound · {offer.outboundStops === 0 ? "Non-stop" : `${offer.outboundStops} stop${offer.outboundStops === 1 ? "" : "s"}`} · {offer.duration}</small></span><b>{formatFare(offer.price, itemCurrency, locale)}</b></div>)}<p>Checked {item.checked} of {item.total} possible date pairs.</p></> : <p>No fares were returned for this search.</p>}<button className="history-restore" onClick={() => restoreHistory(item)}>Show this previous result</button></div></details>;
         })}</div>}
       </section>
 
@@ -865,6 +871,6 @@ export default function Home() {
       </section></div>}
       {providerKeyOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setProviderKeyOpen(false); }}><section className="account-modal" role="dialog" aria-modal="true" aria-labelledby="provider-key-title"><button className="modal-close" onClick={() => setProviderKeyOpen(false)} aria-label="Close">×</button><span className="modal-mark"><SparkIcon /></span><span className="section-kicker">YOUR FLIGHT SEARCHES</span><h2 id="provider-key-title">Connect your SerpApi key.</h2><p>{byokMode ? "Use your own SerpApi account. Its free plan includes up to 250 searches per month; Fare Glow shows the remaining allowance and stops at 250." : "Optionally use your own SerpApi key for your searches. Without one, Fare Glow uses the app's shared key."}</p>{!providerKeyConfigured && <div className="setup-note api-key-help"><strong>Get your key in 3 quick steps</strong><span>1. <a href="https://serpapi.com/manage-api-key" target="_blank" rel="noreferrer">Open your SerpApi API key page ↗</a> and sign in, or <a href="https://serpapi.com/users/sign_up" target="_blank" rel="noreferrer">create a SerpApi account ↗</a>.</span><span>2. On SerpApi, click or tap <b>Copy</b> next to your API key.</span><span>3. Return here, select the box below, paste your key, then tap <b>Save key</b>.</span><span className="paste-hint">Computer: ⌘V on Mac or Ctrl+V on Windows. Phone/tablet: press and hold the box, then tap Paste.</span></div>}{providerKeyConfigured && <div className="setup-note"><strong>SerpApi key connected</strong><span>{providerKeyUsage === null ? "Your key is saved and hidden." : `${providerKeyUsage} searches remain in this month's allowance.`} The key is encrypted on the server and never shown again.</span></div>}<form onSubmit={updateProviderKey}><label className="input-block"><span>{providerKeyConfigured ? "REPLACE KEY" : "PASTE YOUR SERPAPI KEY"}</span><div className="input-wrap"><input type="password" autoComplete="new-password" value={providerKeyValue} onChange={event => setProviderKeyValue(event.target.value)} placeholder={providerKeyConfigured ? "Paste a replacement key" : "Tap here, then paste your key"} required /></div></label><button className="search-button modal-submit" type="submit" disabled={providerKeyBusy}>{providerKeyBusy ? "Checking and saving…" : providerKeyConfigured ? "Replace key" : "Save key"}<ArrowIcon /></button></form>{providerKeyConfigured && <button className="text-button remove-provider-key" onClick={removeProviderKey} disabled={providerKeyBusy}>Remove saved key</button>}{providerKeyMessage && <p className="account-message" role="status">{providerKeyMessage}</p>}<small className="privacy-note">Your SerpApi key is encrypted and hidden after saving. <a href="https://serpapi.com/manage-api-key" target="_blank" rel="noreferrer">Manage your SerpApi key</a></small></section></div>}
       {toast && <div className="toast" role="status">{toast}</div>}
-    </main>
+    </LocalizedContent></main>
   );
 }
