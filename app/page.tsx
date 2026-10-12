@@ -751,7 +751,7 @@ export default function Home() {
           <LanguageSwitcher />
           <a className="how-link" href="/how-it-works">How it works</a>
           <a className="feedback-nav" href="/feedback">Feedback</a>
-          {userEmail ? <div className="account-menu"><span className="user-dot">{userEmail.slice(0, 1).toUpperCase()}</span><button className="text-button" onClick={openProviderKeySettings}>API key</button><button className="text-button" onClick={signOut}>Sign out</button></div> : <button className="sign-in" onClick={() => { setAccountMessage(""); setAccountOpen(true); }}>Sign in <span>↗</span></button>}
+          {userEmail ? <div className="account-menu"><span className="user-dot" aria-hidden="true">{userEmail.slice(0, 1).toUpperCase()}</span><span className="account-email">{userEmail}</span><button className="text-button" onClick={openProviderKeySettings}>API key</button><button className="text-button sign-out-button" onClick={signOut}>Sign out <span aria-hidden="true">↗</span></button></div> : <button className="sign-in" onClick={() => { setAccountMessage(""); setAccountOpen(true); }}>Sign in <span>↗</span></button>}
         </div>
       </header>
 
