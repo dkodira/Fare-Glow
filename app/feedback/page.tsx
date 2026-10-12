@@ -63,7 +63,7 @@ export default function FeedbackPage() {
         <div className="top-actions">
           <LanguageSwitcher />
           <a className="how-link" href="/how-it-works">How it works</a>
-          <a className="sign-in" href="/">Find fares <span>↗</span></a>
+          <a className="sign-in" href="/">Find fares</a>
         </div>
       </header>
 
@@ -76,7 +76,7 @@ export default function FeedbackPage() {
         <form className="feedback-form" onSubmit={submitFeedback}>
           <label className="input-block"><span>WHAT KIND OF FEEDBACK?</span><div className="input-wrap"><select value={category} onChange={event => setCategory(event.target.value)}><option value="Idea">Idea</option><option value="Something is broken">Something is broken</option><option value="Other">Other</option></select></div></label>
           <label className="input-block"><span>YOUR FEEDBACK</span><textarea value={message} onChange={event => setMessage(event.target.value)} minLength={5} maxLength={2000} placeholder="Tell us what would make planning easier…" required /></label>
-          <div className="feedback-form-bottom"><small>{message.length}/2000 characters · visible to everyone</small><button className="search-button" type="submit" disabled={busy}>{busy ? "Posting…" : "Post feedback"}<span aria-hidden="true">↗</span></button></div>
+          <div className="feedback-form-bottom"><small>{message.length}/2000 characters · visible to everyone</small><button className="search-button" type="submit" disabled={busy}>{busy ? "Posting…" : "Post feedback"}</button></div>
           {notice && <p className="feedback-notice" role="status">{notice}</p>}
         </form>
 

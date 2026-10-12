@@ -326,3 +326,47 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible { 
   .account-email { display: none; }
   .account-menu { gap: 3px; }
 }
+
+@media (min-width: 761px) {
+  body { font-size: 15px; }
+  .top-actions a,.sign-in,.text-button { font-size: 13px; }
+  .language-switcher select { font-size: 12px; }
+  .hero-copy p { font-size: 16px; line-height: 1.7; }
+  .eyebrow,.section-kicker { font-size: 10px; }
+  .card-heading h2 { font-size: 24px; }
+  .input-block>span { font-size: 10px; }
+  .input-wrap input,.input-wrap select { font-size: 14px; }
+  .form-bottom p { font-size: 12px; }
+  .round-trip { font-size: 11px; }
+  .results-title-row p { font-size: 13px; }
+  .fare-summary div:nth-child(2)>span { font-size: 9px; }
+  .fare-summary strong { font-size: 24px; }
+  .fare-summary strong small { font-size: 10px; }
+  .fare-summary p,.legend-row { font-size: 11px; }
+  .legend-label { font-size: 9px; }
+  .best-tag,.rank-label,.offer-source { font-size: 9px; }
+  .date-pair>div>span { font-size: 9px; }
+  .date-pair strong { font-size: 21px; }
+  .date-pair small { font-size: 10px; }
+  .offer-price strong { font-size: 25px; }
+  .offer-price span,.offer-details,.offer-footnote { font-size: 10px; }
+  .results-note { font-size: 11px; }
+  .empty-panel strong { font-size: 14px; }
+  .empty-panel>span:last-child { font-size: 12px; }
+  .saved-restore>span { font-size: 14px; }
+  .saved-restore small,.saved-count { font-size: 11px; }
+  .alert-pill { font-size: 9px; }
+  .footer { font-size: 11px; }
+  .footer-api-usage { font-size: 10px; }
+  .mission-intro>p { font-size: 14px; }
+  .mission-step h3,.how-page .mission-step h2 { font-size: 15px; }
+  .mission-step p { font-size: 12px; }
+  .mission-example,.mission-audience { font-size: 12px; }
+  .feedback-intro>p,.feedback-form label>span { font-size: 14px; }
+  .feedback-form input,.feedback-form textarea { font-size: 14px; }
+  .feedback-form-bottom small,.feedback-filter-label { font-size: 11px; }
+  .public-feedback-item p { font-size: 14px; }
+  .public-feedback-item time { font-size: 11px; }
+  .account-modal>p { font-size: 14px; }
+  .setup-note,.api-key-help,.privacy-note { font-size: 12px; }
+}

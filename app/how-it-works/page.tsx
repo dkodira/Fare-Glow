@@ -8,7 +8,7 @@ export default function HowItWorksPage() {
         <a className="brand" href="/" aria-label="Fare Glow home">
           <span className="brand-mark" aria-hidden="true">✦</span><span>Fare <span className="brand-glow">Glow</span></span>
         </a>
-        <div className="top-actions"><LanguageSwitcher /><a className="how-link" href="/feedback">Feedback</a><a className="sign-in" href="/">Find fares <span>↗</span></a></div>
+        <div className="top-actions"><LanguageSwitcher /><a className="how-link" href="/feedback">Feedback</a><a className="sign-in" href="/">Find fares</a></div>
       </header>
 
       <section className="mission-section how-page" aria-labelledby="mission-heading">
