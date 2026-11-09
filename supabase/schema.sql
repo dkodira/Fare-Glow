@@ -9,6 +9,7 @@ create table if not exists public.saved_searches (
   min_nights integer not null default 3 check (min_nights between 1 and 240),
   max_nights integer not null default 10 check (max_nights between min_nights and 240),
   travellers integer not null default 1 check (travellers between 1 and 9),
+  pairs_per_request integer not null default 8 check (pairs_per_request between 1 and 250),
   price_alert_enabled boolean not null default true,
   target_price numeric(10,2),
   last_checked_at timestamptz,

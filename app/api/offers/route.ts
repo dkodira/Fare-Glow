@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { FARE_CURRENCIES, type SearchInput } from "@/lib/types";
+import { DEFAULT_PAIRS_PER_REQUEST, FARE_CURRENCIES, MAX_SEARCH_API_CHUNK, type SearchInput } from "@/lib/types";
+import { countCandidatePairs } from "@/lib/search-candidate-count";
 import { getSerpApiAccount, searchLiveOffers } from "@/lib/serpapi";
 import { authenticateRequest, getStoredSerpApiKey } from "@/lib/user-serpapi-key";
 
@@ -48,7 +49,7 @@ function hasAirportCode(value: string) {
 }
 
 export async function POST(request: Request) {
-  let body: SearchInput & { batch?: number };
+  let body: SearchInput & { batch?: number; startAt?: number; limit?: number };
   try {
     body = await request.json() as SearchInput & { batch?: number };
   } catch {
@@ -56,6 +57,12 @@ export async function POST(request: Request) {
   }
 
   body.currency ??= "CAD";
+  const explicitPairCount = body.pairsPerRequest !== undefined;
+  const pairsPerRequest = body.pairsPerRequest ?? DEFAULT_PAIRS_PER_REQUEST;
+  body.pairsPerRequest = pairsPerRequest;
+  if (!Number.isInteger(pairsPerRequest) || pairsPerRequest < 1 || pairsPerRequest > 250) {
+    return NextResponse.json({ error: "Choose a valid number of date pairs per request." }, { status: 400 });
+  }
   if (!FARE_CURRENCIES.some(({ code }) => code === body.currency)) {
     return NextResponse.json({ error: "Choose a supported fare currency." }, { status: 400 });
   }
@@ -82,7 +89,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Choose two different places." }, { status: 400 });
   }
   if (!Number.isInteger(minNights) || !Number.isInteger(maxNights) || minNights < 1 || maxNights < minNights || maxNights > 240) {
-    return NextResponse.json({ error: "Choose a trip length between 1 day and 8 months (240 days), counting the departure day." }, { status: 400 });
+    return NextResponse.json({ error: "Choose a trip length between 1 and 240 days, counting the departure day." }, { status: 400 });
   }
   if (!Number.isInteger(travellers) || travellers < 1 || travellers > 9) {
     return NextResponse.json({ error: "Choose between 1 and 9 adult travelers." }, { status: 400 });
@@ -94,8 +101,27 @@ export async function POST(request: Request) {
   if (minNights > dateSpan + 1) {
     return NextResponse.json({ error: "Your travel window must be at least as long as your minimum trip length." }, { status: 400 });
   }
+  const candidateCount = countCandidatePairs(body);
+  if (explicitPairCount && pairsPerRequest > candidateCount) {
+    return NextResponse.json({ error: "Choose a request count no larger than the remaining date pairs." }, { status: 400 });
+  }
   const batch = body.batch ?? 0;
   if (!Number.isInteger(batch) || batch < 0 || batch > 100) {
+    return NextResponse.json({ error: "That date batch is not valid." }, { status: 400 });
+  }
+  const hasStartAt = body.startAt !== undefined;
+  const hasLimit = body.limit !== undefined;
+  if (hasStartAt !== hasLimit) {
+    return NextResponse.json({ error: "That date batch is not valid." }, { status: 400 });
+  }
+  if (hasStartAt && (
+    !Number.isInteger(body.startAt) || body.startAt! < 0 ||
+    !Number.isInteger(body.limit) || body.limit! < 1 || body.limit! > MAX_SEARCH_API_CHUNK ||
+    body.limit! > pairsPerRequest
+  )) {
+    return NextResponse.json({ error: "That date batch is not valid." }, { status: 400 });
+  }
+  if (hasStartAt && body.startAt! + body.limit! > candidateCount) {
     return NextResponse.json({ error: "That date batch is not valid." }, { status: 400 });
   }
 
@@ -103,6 +129,7 @@ export async function POST(request: Request) {
     const keyMode = process.env.SERPAPI_KEY_MODE ?? "owner";
     let keyOptions: { apiKey?: string; cacheScope?: string; monthlyCap?: number } = {};
     let keySource = "Fare Glow's shared key";
+    let personalKeyResolved = false;
     if (keyMode === "byok") {
       const identity = await authenticateRequest(request);
       if (!identity) return NextResponse.json({ error: "Sign in to use your own SerpApi key." }, { status: 401 });
@@ -110,6 +137,7 @@ export async function POST(request: Request) {
       if (!apiKey) return NextResponse.json({ error: "Add your SerpApi key in account settings before searching." }, { status: 403 });
       keyOptions = { apiKey, cacheScope: identity.user.id, monthlyCap: 250 };
       keySource = "your SerpApi key";
+      personalKeyResolved = true;
     } else if (keyMode === "owner") {
       // In owner mode a signed-in user may choose to use their own key from
       // account settings. If they have not added one, use the owner's key.
@@ -117,12 +145,18 @@ export async function POST(request: Request) {
         const identity = await authenticateRequest(request);
         if (!identity) return NextResponse.json({ error: "Please sign in again to use your saved SerpApi key." }, { status: 401 });
         const userApiKey = await getStoredSerpApiKey(identity.admin, identity.user.id);
-        if (userApiKey) { keyOptions = { apiKey: userApiKey, cacheScope: identity.user.id, monthlyCap: 250 }; keySource = "your SerpApi key"; }
+        if (userApiKey) { keyOptions = { apiKey: userApiKey, cacheScope: identity.user.id, monthlyCap: 250 }; keySource = "your SerpApi key"; personalKeyResolved = true; }
       }
     } else {
       return NextResponse.json({ error: "Fare Glow's SerpApi key mode is not configured correctly." }, { status: 503 });
     }
-    const result = await searchLiveOffers(body, batch, keyOptions);
+    if (pairsPerRequest > DEFAULT_PAIRS_PER_REQUEST && !personalKeyResolved) {
+      return NextResponse.json({ error: "Sign in and add your own SerpApi key to search more than 8 date pairs per request." }, { status: 403 });
+    }
+    const result = await searchLiveOffers(body, batch, {
+      ...keyOptions,
+      ...(hasStartAt ? { startAt: body.startAt, limit: body.limit } : {}),
+    });
     return NextResponse.json({ ...result, mode: "live" as const, keySource });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Live fares could not be checked. Please try again.";

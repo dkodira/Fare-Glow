@@ -1,14 +1,16 @@
 "use client";
 
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { ArrowLeftRight, ArrowRight, CalendarDays, MapPin, Minus, Plus, Sparkles } from "lucide-react";
 import { getSupabase, hasSupabaseConfig } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
-import { FARE_CURRENCIES, type AdvancedFilters, type FareCurrency, type FlightOffer, type SearchInput } from "@/lib/types";
+import { DEFAULT_PAIRS_PER_REQUEST, FARE_CURRENCIES, MAX_SEARCH_API_CHUNK, type AdvancedFilters, type FareCurrency, type FlightOffer, type SearchInput } from "@/lib/types";
+import { countCandidatePairs } from "@/lib/search-candidate-count";
 import { LocalizedContent, useLocale } from "@/components/LocaleProvider";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { formatLocale, type Locale } from "@/lib/i18n";
 
-type SavedSearch = { id: string; origin: string; destination: string; date_from: string; date_to: string; min_nights: number; max_nights: number; travellers: number };
+type SavedSearch = { id: string; origin: string; destination: string; date_from: string; date_to: string; min_nights: number; max_nights: number; travellers: number; pairs_per_request?: number };
 type SearchHistoryItem = { id: string; searchedAt: string; search: SearchInput; offers: FlightOffer[]; checked: number; total: number };
 type SearchHistoryRow = { id: string; searched_at: string; search_data: SearchInput; offers: FlightOffer[]; checked_pairs: number; total_pairs: number };
 const HISTORY_STORAGE_KEY = "fare-glow-search-history-v1";
@@ -18,7 +20,7 @@ const bookingTips = [
   { title: "Consider a connection.", text: "Layovers can reduce fares on average. Compare the savings with the longer trip and any extra airport costs." },
   { title: "Compare the full price.", text: "Add baggage and seat-selection fees before choosing. A low starting fare may not be the lowest total." },
   { title: "Treat fares as snapshots.", text: "Prices and seat availability can change. Confirm the exact return itinerary and total with the booking site before paying." },
-  { title: "Search more dates for a wider view.", text: "Fare Glow checks up to 8 return date pairs per batch. Use “Check more dates” to compare additional options." },
+  { title: "Search more dates for a wider view.", text: "Fare Glow checks 8 return date pairs per request by default. Sign in and add your own SerpApi key to request more." },
 ];
 
 const today = new Date();
@@ -33,6 +35,7 @@ const defaultSearch: SearchInput = {
   minNights: 3,
   maxNights: 10,
   travellers: 1,
+  pairsPerRequest: DEFAULT_PAIRS_PER_REQUEST,
   advanced: { stops: "any", carryOn: 0, airlineMode: "any", airlines: [], maxPrice: "", outboundTime: "", returnTime: "", maxDuration: 0, layover: "", excludedAirports: [], cabin: 1, sortBy: 2, lowEmissions: false },
 };
 const airlineOptions = [
@@ -49,16 +52,10 @@ function clockMinutes(value: string) {
   if (match[3].toUpperCase() === "PM") hour += 12;
   return hour * 60 + Number(match[2]);
 }
-const tripLengthOptions = [
-  ...Array.from({ length: 30 }, (_, index) => {
-    const days = index + 1;
-    return { value: days, label: days === 30 ? "30 days (about 1 month)" : `${days} day${days === 1 ? "" : "s"}` };
-  }),
-  ...Array.from({ length: 7 }, (_, index) => {
-    const months = index + 2;
-    return { value: months * 30, label: `${months} months (about ${months * 30} days)` };
-  }),
-];
+const tripLengthOptions = Array.from({ length: 240 }, (_, index) => {
+  const days = index + 1;
+  return { value: days, label: `${days} day${days === 1 ? "" : "s"}` };
+});
 
 const airportOptions = [
   { city: "Toronto", name: "Toronto Pearson International", code: "YYZ", country: "Canada" },
@@ -169,7 +166,7 @@ function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
   field: "origin" | "destination";
   value: string;
   onChange: (value: string) => void;
-  symbol: string;
+  symbol: ReactNode;
   symbolClass: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -258,13 +255,13 @@ function AirportInput({ label, field, value, onChange, symbol, symbolClass }: {
 }
 
 function CalendarIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 10h18"/><path d="m8 15 2 2 5-5"/></svg>;
+  return <CalendarDays aria-hidden="true" />;
 }
 function ArrowIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>;
+  return <ArrowRight aria-hidden="true" />;
 }
 function SparkIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2Z"/><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z"/></svg>;
+  return <Sparkles aria-hidden="true" />;
 }
 
 function prettyDate(value: string, locale: Locale) {
@@ -298,14 +295,16 @@ export default function Home() {
   const [historyStorageMode, setHistoryStorageMode] = useState<"loading" | "device" | "account">("loading");
   const [historyError, setHistoryError] = useState("");
   const [activeHistoryId, setActiveHistoryId] = useState("");
+  const [activeSearch, setActiveSearch] = useState<SearchInput | null>(null);
   const [offers, setOffers] = useState<FlightOffer[]>([]);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [hasMoreDates, setHasMoreDates] = useState(false);
-  const [nextBatch, setNextBatch] = useState(0);
+  const [nextOffset, setNextOffset] = useState(0);
   const [checkedPairs, setCheckedPairs] = useState(0);
   const [totalPairs, setTotalPairs] = useState(0);
+  const [requestProgress, setRequestProgress] = useState<{ checked: number; target: number } | null>(null);
   const [usageRemaining, setUsageRemaining] = useState<number | null>(null);
   const [usageKeySource, setUsageKeySource] = useState("");
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -324,6 +323,25 @@ export default function Home() {
   const [providerKeyBusy, setProviderKeyBusy] = useState(false);
   const supabaseReady = hasSupabaseConfig();
   const byokMode = process.env.NEXT_PUBLIC_SERPAPI_KEY_MODE === "byok";
+  const candidatePairCount = useMemo(() => countCandidatePairs(search), [search.dateFrom, search.dateTo, search.minNights, search.maxNights]);
+  const personalKeyReady = Boolean(userEmail && providerKeyConfigured);
+  const maxPairsPerRequest = Math.max(0, Math.min(candidatePairCount, personalKeyReady ? Math.floor(usageRemaining ?? DEFAULT_PAIRS_PER_REQUEST) : DEFAULT_PAIRS_PER_REQUEST, 250));
+
+  useEffect(() => {
+    if (maxPairsPerRequest < 1) return;
+    setSearch(current => {
+      const selected = current.pairsPerRequest ?? DEFAULT_PAIRS_PER_REQUEST;
+      const bounded = Math.min(selected, maxPairsPerRequest);
+      return selected === bounded ? current : { ...current, pairsPerRequest: bounded };
+    });
+  }, [maxPairsPerRequest]);
+
+  useEffect(() => {
+    if (personalKeyReady) return;
+    setActiveSearch(current => current && (current.pairsPerRequest ?? DEFAULT_PAIRS_PER_REQUEST) > DEFAULT_PAIRS_PER_REQUEST
+      ? { ...current, pairsPerRequest: DEFAULT_PAIRS_PER_REQUEST }
+      : current);
+  }, [personalKeyReady]);
 
   useEffect(() => {
     if (bookingTipsPaused) return;
@@ -493,7 +511,7 @@ export default function Home() {
 
   function updateCurrency(currency: FareCurrency) {
     setSearch(current => ({ ...current, currency, advanced: { ...defaultAdvanced, ...current.advanced, maxPrice: "" } }));
-    setOffers([]); setSearched(false); setError(""); setHasMoreDates(false); setCheckedPairs(0); setTotalPairs(0); setNextBatch(0); setActiveHistoryId("");
+    setOffers([]); setSearched(false); setError(""); setHasMoreDates(false); setCheckedPairs(0); setTotalPairs(0); setNextOffset(0); setActiveHistoryId(""); setActiveSearch(null);
   }
 
   function sortOffers(items: FlightOffer[]) {
@@ -523,7 +541,7 @@ export default function Home() {
     setHistoryError("");
   }
 
-  async function findFlights(event?: FormEvent, batch = 0) {
+  async function findFlights(event?: FormEvent, startAt = 0, searchForMore?: SearchInput) {
     event?.preventDefault();
     if (byokMode && !userEmail) {
       setAccountMessage("Sign in first, then add your SerpApi key in account settings.");
@@ -535,46 +553,86 @@ export default function Home() {
       setProviderKeyOpen(true);
       return;
     }
-    setLoading(true); setError(""); setSearched(true);
-    if (batch === 0) { setOffers([]); setHasMoreDates(false); setCheckedPairs(0); setTotalPairs(0); setUsageRemaining(null); }
+    const isInitialSearch = startAt === 0;
+    const sourceSearch = searchForMore ?? search;
+    const candidateTotal = countCandidatePairs(sourceSearch);
+    const requestSearch: SearchInput = {
+      ...sourceSearch,
+      pairsPerRequest: Math.min(sourceSearch.pairsPerRequest ?? DEFAULT_PAIRS_PER_REQUEST, Math.max(1, candidateTotal)),
+      advanced: { ...defaultAdvanced, ...sourceSearch.advanced, airlines: [...(sourceSearch.advanced?.airlines ?? [])], excludedAirports: [...(sourceSearch.advanced?.excludedAirports ?? [])] },
+    };
+    const targetCount = Math.min(requestSearch.pairsPerRequest ?? DEFAULT_PAIRS_PER_REQUEST, Math.max(0, candidateTotal - startAt));
+    if (targetCount < 1) { setError("No date pairs remain in this search window."); return; }
+
+    setLoading(true); setError(""); setSearched(true); setRequestProgress({ checked: 0, target: targetCount });
+    if (isInitialSearch) {
+      setOffers([]); setHasMoreDates(false); setCheckedPairs(0); setTotalPairs(candidateTotal); setNextOffset(0); setActiveHistoryId(""); setActiveSearch(requestSearch);
+    }
+    const makeHistoryId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const historyId = isInitialSearch ? makeHistoryId() : activeHistoryId || makeHistoryId();
+    const existingHistory = isInitialSearch ? undefined : searchHistory.find(item => item.id === historyId);
+    const searchedAt = existingHistory?.searchedAt ?? new Date().toISOString();
+    let cursor = startAt;
+    let requestChecked = 0;
+    let accumulatedChecked = isInitialSearch ? 0 : checkedPairs;
+    let accumulatedOffers = isInitialSearch ? [] as FlightOffer[] : offers;
+    let latestData: { totalCandidates: number; moreAvailable: boolean; budgetReached: boolean; usageRemaining: number | null; keySource?: string } | null = null;
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (byokMode || providerKeyConfigured) {
+      if (byokMode || userEmail) {
         const supabase = getSupabase();
         const { data } = await supabase?.auth.getSession() ?? { data: { session: null } };
         if (data.session?.access_token) headers.Authorization = `Bearer ${data.session.access_token}`;
       }
-      const response = await fetch("/api/offers", { method: "POST", headers, body: JSON.stringify({ ...search, batch }) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "We couldn’t search those dates.");
-      const makeHistoryId = () => globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      const historyId = batch === 0 ? makeHistoryId() : activeHistoryId || makeHistoryId();
-      if (batch === 0) setActiveHistoryId(historyId);
-      const mergedOffers = sortOffers(batch === 0 ? (data.offers as FlightOffer[]) : [...offers, ...(data.offers as FlightOffer[])]);
-      setOffers(mergedOffers);
-      const existing = batch > 0 ? searchHistory.find(item => item.id === historyId) : undefined;
-      const historyItem: SearchHistoryItem = {
-        id: historyId,
-        searchedAt: existing?.searchedAt ?? new Date().toISOString(),
-        search: { ...search, advanced: { ...defaultAdvanced, ...search.advanced, airlines: [...(search.advanced?.airlines ?? [])], excludedAirports: [...(search.advanced?.excludedAirports ?? [])] } },
-        offers: mergedOffers,
-        checked: batch === 0 ? data.checked : (existing?.checked ?? checkedPairs) + data.checked,
-        total: data.totalCandidates,
-      };
-      setSearchHistory(current => [historyItem, ...current.filter(item => item.id !== historyId)].slice(0, 10));
-      if (userEmail) await saveAccountHistory(historyItem);
-      setCheckedPairs(current => batch === 0 ? data.checked : current + data.checked);
-      setTotalPairs(data.totalCandidates);
-      setHasMoreDates(data.moreAvailable);
-      setNextBatch(data.nextBatch);
-      setUsageRemaining(data.usageRemaining);
-      setUsageKeySource(data.keySource ?? "");
-      if (data.keySource === "your SerpApi key") setProviderKeyUsage(data.usageRemaining);
-      if (!data.offers.length && batch === 0) setError("No fares came back for the first dates checked. You can check more dates or adjust your travel window.");
-      if (data.budgetReached) setError("This month’s SerpApi search budget has been reached. The fares already found are still shown.");
+      while (requestChecked < targetCount) {
+        const limit = Math.min(MAX_SEARCH_API_CHUNK, targetCount - requestChecked);
+        const response = await fetch("/api/offers", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ ...requestSearch, startAt: cursor, limit }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "We couldn’t search those dates.");
+
+        accumulatedOffers = sortOffers([...accumulatedOffers, ...(data.offers as FlightOffer[])]);
+        accumulatedChecked += data.checked as number;
+        requestChecked += data.checked as number;
+        cursor = data.nextOffset as number;
+        latestData = data;
+
+        setOffers(accumulatedOffers);
+        setCheckedPairs(accumulatedChecked);
+        setTotalPairs(data.totalCandidates);
+        setNextOffset(cursor);
+        setHasMoreDates(data.moreAvailable);
+        setUsageRemaining(data.usageRemaining);
+        setUsageKeySource(data.keySource ?? "");
+        setRequestProgress({ checked: requestChecked, target: targetCount });
+        if (data.keySource === "your SerpApi key") setProviderKeyUsage(data.usageRemaining);
+
+        const historyItem: SearchHistoryItem = {
+          id: historyId,
+          searchedAt,
+          search: requestSearch,
+          offers: accumulatedOffers,
+          checked: accumulatedChecked,
+          total: data.totalCandidates,
+        };
+        setActiveHistoryId(historyId);
+        setSearchHistory(current => [historyItem, ...current.filter(item => item.id !== historyId)].slice(0, 10));
+        if (userEmail) await saveAccountHistory(historyItem);
+
+        if (data.budgetReached || !data.checked || !data.moreAvailable && requestChecked < targetCount) break;
+      }
+      if (!accumulatedOffers.length && isInitialSearch) {
+        setError("No fares came back for the first dates checked. You can check more dates or adjust your travel window.");
+      }
+      if (latestData?.budgetReached) {
+        setError("This month’s SerpApi search budget has been reached. The fares already found are still shown.");
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Something went wrong. Please try again.");
-    } finally { setLoading(false); }
+    } finally { setRequestProgress(null); setLoading(false); }
   }
 
   async function signIn(event: FormEvent) {
@@ -688,6 +746,7 @@ export default function Home() {
       user_id: userResult.user.id,
       origin: search.origin, destination: search.destination, date_from: search.dateFrom, date_to: search.dateTo,
       min_nights: search.minNights, max_nights: search.maxNights, travellers: search.travellers,
+      pairs_per_request: search.pairsPerRequest ?? DEFAULT_PAIRS_PER_REQUEST,
     }).select().single();
     if (saveError) setToast("Couldn’t save yet. Check the account setup guide.");
     else { setSaved(current => [data as SavedSearch, ...current]); setToast("Search saved. Price alert setup is the next connection step."); }
@@ -703,16 +762,19 @@ export default function Home() {
   }
 
   function restoreSearch(item: SavedSearch) {
-    setSearch(current => ({ origin: item.origin, destination: item.destination, currency: current.currency, dateFrom: item.date_from, dateTo: item.date_to, minNights: item.min_nights, maxNights: item.max_nights, travellers: item.travellers }));
+    setSearch(current => ({ ...current, origin: item.origin, destination: item.destination, dateFrom: item.date_from, dateTo: item.date_to, minNights: item.min_nights, maxNights: item.max_nights, travellers: item.travellers, pairsPerRequest: item.pairs_per_request ?? DEFAULT_PAIRS_PER_REQUEST }));
     window.scrollTo({ top: 0, behavior: "smooth" });
     setToast("Search details restored. Search again for current prices.");
   }
 
   function restoreHistory(item: SearchHistoryItem) {
-    setSearch({ ...item.search, currency: item.search.currency ?? "CAD" });
+    const restoredSearch: SearchInput = { ...item.search, currency: item.search.currency ?? "CAD", pairsPerRequest: item.search.pairsPerRequest ?? DEFAULT_PAIRS_PER_REQUEST };
+    setSearch(restoredSearch);
+    setActiveSearch(restoredSearch);
     setOffers(item.offers);
     setCheckedPairs(item.checked);
     setTotalPairs(item.total);
+    setNextOffset(item.checked);
     setSearched(true);
     setHasMoreDates(false);
     setError("");
@@ -755,6 +817,7 @@ export default function Home() {
         </div>
       </header>
 
+      <div className="hero-search-layout">
       <section className="hero" id="top">
         <div className="hero-copy">
           <div className="eyebrow"><span className="eyebrow-dot" /> FIND YOUR LOW FARE WINDOW</div>
@@ -764,18 +827,6 @@ export default function Home() {
         <div className="hero-stamp"><span>GO</span><i aria-hidden="true">·</i><span>RETURN</span></div>
       </section>
 
-      <div className="demo-banner"><span className="demo-icon">i</span><span><strong>Fare searches check a few dates at a time.</strong> Each batch checks up to eight return date pairs. Use “Check more dates” to expand the search while keeping API use low.</span></div>
-
-      <section className="booking-tip" aria-label="Airfare tips">
-        <p className="booking-tip-copy" aria-live="polite" aria-atomic="true"><strong>{bookingTips[bookingTipIndex].title}</strong> {bookingTips[bookingTipIndex].text}</p>
-        <div className="booking-tip-controls">
-          <span className="booking-tip-count" aria-label={`Tip ${bookingTipIndex + 1} of ${bookingTips.length}`}>{bookingTipIndex + 1} / {bookingTips.length}</span>
-          <button type="button" onClick={() => setBookingTipIndex(index => (index - 1 + bookingTips.length) % bookingTips.length)} aria-label="Previous airfare tip">‹ Previous</button>
-          <button type="button" onClick={() => setBookingTipsPaused(paused => !paused)} aria-label={bookingTipsPaused ? "Resume rotating airfare tips" : "Pause rotating airfare tips"}>{bookingTipsPaused ? "Resume" : "Pause"}</button>
-          <button type="button" onClick={() => setBookingTipIndex(index => (index + 1) % bookingTips.length)} aria-label="Next airfare tip">Next ›</button>
-        </div>
-      </section>
-
       <section className="search-card" aria-labelledby="search-heading">
         <div className="card-heading">
           <div><span className="section-kicker">YOUR TRIP</span><h2 id="search-heading">Where can you go?</h2></div>
@@ -783,9 +834,9 @@ export default function Home() {
         </div>
       <form onSubmit={findFlights}>
           <div className="route-fields">
-            <AirportInput label="FROM" field="origin" value={search.origin} onChange={value => update("origin", value)} symbol="●" symbolClass="origin-symbol" />
-            <button className="swap-button" type="button" onClick={swapRoute} aria-label="Swap origin and destination">⇄</button>
-            <AirportInput label="TO" field="destination" value={search.destination} onChange={value => update("destination", value)} symbol="◎" symbolClass="destination-symbol" />
+            <AirportInput label="FROM" field="origin" value={search.origin} onChange={value => update("origin", value)} symbol={<MapPin size={17} strokeWidth={1.8} />} symbolClass="origin-symbol" />
+            <button className="swap-button" type="button" onClick={swapRoute} aria-label="Swap origin and destination"><ArrowLeftRight size={18} strokeWidth={1.8} /></button>
+            <AirportInput label="TO" field="destination" value={search.destination} onChange={value => update("destination", value)} symbol={<MapPin size={17} strokeWidth={1.8} />} symbolClass="destination-symbol" />
           </div>
           <div className="range-row">
             <div className="input-block"><span>CHOOSE YOUR TRAVEL DATE WINDOW</span><div className="date-range-picker"><CalendarIcon /><div className="date-range-fields"><label className="date-field"><span>Earliest date</span><input aria-label="Earliest travel date" type="date" min={iso(today)} value={search.dateFrom} onChange={e => update("dateFrom", e.target.value)} required /></label><label className="date-field"><span>Latest date</span><input aria-label="Latest travel date" type="date" value={search.dateTo} min={search.dateFrom} onChange={e => update("dateTo", e.target.value)} required /></label></div></div></div>
@@ -794,11 +845,12 @@ export default function Home() {
           </div>
           <div className="currency-row">
             <label className="input-block"><span>FARE CURRENCY</span><div className="input-wrap"><select aria-label="Fare currency" value={search.currency} disabled={loading} onChange={e => updateCurrency(e.target.value as FareCurrency)}>{FARE_CURRENCIES.map(currency => <option value={currency.code} key={currency.code}>{currency.code} — {currency.name}</option>)}</select></div></label>
+            <label className="input-block pairs-per-request-block"><span>DATE PAIRS PER REQUEST</span><div className="input-wrap"><select aria-label="Date pairs per request" value={maxPairsPerRequest > 0 ? Math.min(search.pairsPerRequest ?? DEFAULT_PAIRS_PER_REQUEST, maxPairsPerRequest) : 0} disabled={loading || maxPairsPerRequest < 1} onChange={e => update("pairsPerRequest", Number(e.target.value))}>{maxPairsPerRequest > 0 ? Array.from({ length: maxPairsPerRequest }, (_, index) => index + 1).map(count => <option value={count} key={count}>{count} {count === 1 ? "date pair" : "date pairs"}</option>) : <option value={0}>{candidatePairCount < 1 ? "No valid date pairs" : "No searches left this month"}</option>}</select></div><small>{personalKeyReady ? usageRemaining === null ? "Checking your personal SerpApi allowance…" : "Using your personal SerpApi key. The available count follows its remaining allowance." : "Using Fare Glow’s shared key. Sign in and add your own key to request more than 8 pairs."}</small></label>
             <small>Changing currency clears current results; search again for new fares. Confirm the final price when booking.</small>
           </div>
           <section className="advanced-search" aria-label="Advanced flight options">
             <button className="advanced-toggle" type="button" aria-expanded={advancedOpen} onClick={() => setAdvancedOpen(open => !open)}>
-              <span><strong>Advanced search</strong><small>Stops, airlines, bags, times, and more</small></span><span className="advanced-toggle-right">{advancedOpen ? "Hide options" : "Show options"} <b>{advancedOpen ? "−" : "+"}</b></span>
+              <span><strong>Advanced search</strong><small>Stops, airlines, bags, times, and more</small></span><span className="advanced-toggle-right">{advancedOpen ? "Hide options" : "Show options"} <b>{advancedOpen ? <Minus size={15} /> : <Plus size={15} />}</b></span>
             </button>
             {advancedOpen && <div className="advanced-panel">
               <div className="advanced-grid">
@@ -821,12 +873,27 @@ export default function Home() {
           <div className="form-bottom"><p>We’ll check selected return dates inside your window and show their live prices.</p><button className="search-button" type="submit" disabled={loading}>{loading ? <><span className="spinner" /> Looking for dates…</> : "Find cheaper dates"}</button></div>
         </form>
       </section>
+      </div>
+
+      <div className="search-support-content">
+        <div className="demo-banner"><span className="demo-icon">i</span><span><strong>Fare searches check a few dates at a time.</strong> Fare Glow starts with 8 pairs per request. Sign in and add your own SerpApi key to increase that number.</span></div>
+
+        <section className="booking-tip" aria-label="Airfare tips">
+          <p className="booking-tip-copy" aria-live="polite" aria-atomic="true"><strong>{bookingTips[bookingTipIndex].title}</strong> {bookingTips[bookingTipIndex].text}</p>
+          <div className="booking-tip-controls">
+            <span className="booking-tip-count" aria-label={`Tip ${bookingTipIndex + 1} of ${bookingTips.length}`}>{bookingTipIndex + 1} / {bookingTips.length}</span>
+            <button type="button" onClick={() => setBookingTipIndex(index => (index - 1 + bookingTips.length) % bookingTips.length)} aria-label="Previous airfare tip">‹ Previous</button>
+            <button type="button" onClick={() => setBookingTipsPaused(paused => !paused)} aria-label={bookingTipsPaused ? "Resume rotating airfare tips" : "Pause rotating airfare tips"}>{bookingTipsPaused ? "Resume" : "Pause"}</button>
+            <button type="button" onClick={() => setBookingTipIndex(index => (index + 1) % bookingTips.length)} aria-label="Next airfare tip">Next ›</button>
+          </div>
+        </section>
+      </div>
 
       {searched && <section className="results-section" aria-live="polite">
         <div className="results-title-row"><div><span className="section-kicker">YOUR FARE WINDOW</span><h2>{search.origin.split(" (")[0]} <span className="route-arrow">→</span> {search.destination.split(" (")[0]}</h2><p>{prettyRange(search.dateFrom, search.dateTo, locale)} · return trips · {search.currency}</p></div>
           {offers.length > 0 && <button className="save-button" onClick={saveSearch} disabled={saveBusy}><span>＋</span> {saveBusy ? "Saving…" : "Save search"}</button>}
         </div>
-        {loading && <div className="loading-panel"><span className="spinner spinner-dark" /> Checking available dates…</div>}
+        {loading && <div className="loading-panel"><span className="spinner spinner-dark" /><span>Checking available dates…</span>{requestProgress && <><strong className="search-progress-label">{requestProgress.checked} / {requestProgress.target} requested pairs</strong><progress className="search-progress" value={requestProgress.checked} max={requestProgress.target} aria-label="Search progress" /></>}</div>}
         {!loading && error && <div className="empty-panel"><span className="empty-spark"><SparkIcon /></span><strong>{error}</strong><span>Try adjusting the range or trip length.</span></div>}
         {!loading && offers.length > 0 && <>
           <div className="fare-summary"><div className="summary-icon"><SparkIcon /></div><div><span>LOWEST RETURN FARE FOUND</span><strong>{formatFare(cheapest, search.currency, locale)}</strong></div><p>Checked {checkedPairs} of {totalPairs} possible date pairs{usageRemaining !== null ? ` · ${usageRemaining} API searches left in this budget` : ""}</p></div>
@@ -844,7 +911,7 @@ export default function Home() {
           </div>
           <div className="results-note"><span>i</span> These are live round-trip prices for the sampled date pairs. The absolute lowest fare may be on a date pair not checked yet; confirm the itinerary and current total on Google Flights.</div>
         </>}
-        {!loading && hasMoreDates && <div className="more-dates-row"><button className="save-button" onClick={() => findFlights(undefined, nextBatch)}>Check more dates</button><span>Each additional batch checks up to eight new date pairs.</span></div>}
+        {!loading && hasMoreDates && <div className="more-dates-row"><button className="save-button" onClick={() => findFlights(undefined, nextOffset, activeSearch ?? undefined)}>Check more dates</button><span>This request checks up to {activeSearch?.pairsPerRequest ?? DEFAULT_PAIRS_PER_REQUEST} more pairs.</span></div>}
         {!loading && error && offers.length > 0 && <div className="results-note"><span>i</span>{error}</div>}
       </section>}
 

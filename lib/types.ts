@@ -13,6 +13,9 @@ export const FARE_CURRENCIES = [
 
 export type FareCurrency = (typeof FARE_CURRENCIES)[number]["code"];
 
+export const DEFAULT_PAIRS_PER_REQUEST = 8;
+export const MAX_SEARCH_API_CHUNK = 8;
+
 export type SearchInput = {
   origin: string;
   destination: string;
@@ -22,6 +25,7 @@ export type SearchInput = {
   minNights: number;
   maxNights: number;
   travellers: number;
+  pairsPerRequest?: number;
   advanced?: AdvancedFilters;
 };
 

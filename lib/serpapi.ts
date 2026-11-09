@@ -1,4 +1,4 @@
-import type { AdvancedFilters, FlightOffer, SearchInput } from "@/lib/types";
+import { DEFAULT_PAIRS_PER_REQUEST, MAX_SEARCH_API_CHUNK, type AdvancedFilters, type FlightOffer, type SearchInput } from "@/lib/types";
 
 type Candidate = { outboundDate: string; returnDate: string };
 type SerpFlightSegment = {
@@ -24,7 +24,7 @@ export type SerpAccount = {
   this_month_usage?: number;
 };
 
-const MAX_BATCH_SIZE = 8;
+const MAX_BATCH_SIZE = MAX_SEARCH_API_CHUNK;
 const CACHE_TTL_MS = 55 * 60 * 1000;
 const responseCache = new Map<string, { expiresAt: number; offers: FlightOffer[] }>();
 const inFlight = new Map<string, Promise<FlightOffer[]>>();
@@ -255,14 +255,21 @@ async function searchPair(input: SearchInput, candidate: Candidate, apiKey: stri
   finally { inFlight.delete(key); }
 }
 
-export async function searchLiveOffers(input: SearchInput, batch: number, options?: { apiKey?: string; cacheScope?: string; monthlyCap?: number }) {
+export async function searchLiveOffers(input: SearchInput, batch: number, options?: {
+  apiKey?: string;
+  cacheScope?: string;
+  monthlyCap?: number;
+  startAt?: number;
+  limit?: number;
+}) {
   const apiKey = options?.apiKey ?? process.env.SERPAPI_API_KEY;
   if (!apiKey) throw new Error("Live fares are not connected yet. Add SERPAPI_API_KEY to .env.local, then restart Fare Glow.");
   const cacheScope = options?.cacheScope ?? "owner";
   const monthlyCap = options?.monthlyCap ?? getBudgetCap();
   const allCandidates = buildCandidates(input);
-  const offset = batch * MAX_BATCH_SIZE;
-  const candidates = allCandidates.slice(offset, offset + MAX_BATCH_SIZE);
+  const offset = options?.startAt ?? batch * MAX_BATCH_SIZE;
+  const limit = options?.limit ?? DEFAULT_PAIRS_PER_REQUEST;
+  const candidates = allCandidates.slice(offset, offset + limit);
   const offers: FlightOffer[] = [];
   let checked = 0;
   let budgetReached = false;
@@ -280,6 +287,7 @@ export async function searchLiveOffers(input: SearchInput, batch: number, option
     }
   }
 
+  const nextOffset = offset + checked;
   let usageRemaining: number | null = null;
   try {
     const account = await getSerpApiAccount(apiKey);
@@ -288,7 +296,7 @@ export async function searchLiveOffers(input: SearchInput, batch: number, option
     // The search itself may have succeeded. Do not hide fares if the optional usage refresh fails.
   }
 
-  const moreAvailable = !budgetReached && offset + candidates.length < allCandidates.length;
+  const moreAvailable = !budgetReached && nextOffset < allCandidates.length;
   return {
     offers: offers.sort((a, b) => {
       switch (input.advanced?.sortBy) {
@@ -303,6 +311,7 @@ export async function searchLiveOffers(input: SearchInput, batch: number, option
     checked,
     totalCandidates: allCandidates.length,
     nextBatch: batch + 1,
+    nextOffset,
     moreAvailable,
     budgetReached,
     usageRemaining,

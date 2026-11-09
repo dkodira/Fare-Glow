@@ -1,0 +1,103 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A00000000000000000000001 /* FareGlowApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000001 /* FareGlowApp.swift */; };
+		A00000000000000000000002 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000002 /* AppConfiguration.swift */; };
+		A00000000000000000000003 /* SunriseTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000003 /* SunriseTheme.swift */; };
+		A00000000000000000000004 /* FareSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000004 /* FareSearch.swift */; };
+		A00000000000000000000005 /* FlightOffer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000005 /* FlightOffer.swift */; };
+		A00000000000000000000006 /* SearchHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000006 /* SearchHistory.swift */; };
+		A00000000000000000000007 /* SupabaseService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000007 /* SupabaseService.swift */; };
+		A00000000000000000000008 /* FareGlowAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000008 /* FareGlowAPI.swift */; };
+		A00000000000000000000009 /* AccountStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000009 /* AccountStore.swift */; };
+		A0000000000000000000000A /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000A /* HistoryStore.swift */; };
+		A0000000000000000000000B /* SearchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000B /* SearchStore.swift */; };
+		A0000000000000000000000C /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000C /* SearchView.swift */; };
+		A0000000000000000000000D /* AdvancedFiltersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000D /* AdvancedFiltersView.swift */; };
+		A0000000000000000000000E /* ResultsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000E /* ResultsView.swift */; };
+		A0000000000000000000000F /* AccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000000F /* AccountView.swift */; };
+		A00000000000000000000010 /* SavedSearchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000010 /* SavedSearchesView.swift */; };
+		A00000000000000000000011 /* SearchHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000011 /* SearchHistoryView.swift */; };
+		A00000000000000000000012 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = C00000000000000000000001 /* Supabase */; };
+		A00000000000000000000013 /* AirportPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000013 /* AirportPicker.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B00000000000000000000001 /* FareGlowApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FareGlowApp.swift; sourceTree = "<group>"; };
+		B00000000000000000000002 /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
+		B00000000000000000000003 /* SunriseTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SunriseTheme.swift; sourceTree = "<group>"; };
+		B00000000000000000000004 /* FareSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FareSearch.swift; sourceTree = "<group>"; };
+		B00000000000000000000005 /* FlightOffer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlightOffer.swift; sourceTree = "<group>"; };
+		B00000000000000000000006 /* SearchHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchHistory.swift; sourceTree = "<group>"; };
+		B00000000000000000000007 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
+		B00000000000000000000008 /* FareGlowAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FareGlowAPI.swift; sourceTree = "<group>"; };
+		B00000000000000000000009 /* AccountStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStore.swift; sourceTree = "<group>"; };
+		B0000000000000000000000A /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
+		B0000000000000000000000B /* SearchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchStore.swift; sourceTree = "<group>"; };
+		B0000000000000000000000C /* SearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchView.swift; sourceTree = "<group>"; };
+		B0000000000000000000000D /* AdvancedFiltersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdvancedFiltersView.swift; sourceTree = "<group>"; };
+		B0000000000000000000000E /* ResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResultsView.swift; sourceTree = "<group>"; };
+		B0000000000000000000000F /* AccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountView.swift; sourceTree = "<group>"; };
+		B00000000000000000000010 /* SavedSearchesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedSearchesView.swift; sourceTree = "<group>"; };
+		B00000000000000000000011 /* SearchHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchHistoryView.swift; sourceTree = "<group>"; };
+		B00000000000000000000012 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B00000000000000000000013 /* AirportPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportPicker.swift; sourceTree = "<group>"; };
+		D00000000000000000000001 /* FareGlow.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FareGlow.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E00000000000000000000001 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000012 /* Supabase in Frameworks */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		F00000000000000000000001 = {isa = PBXGroup; children = (F00000000000000000000002 /* FareGlow */, F00000000000000000000003 /* Products */,); sourceTree = "<group>"; };
+		F00000000000000000000002 /* FareGlow */ = {isa = PBXGroup; path = FareGlow; sourceTree = "<group>"; children = (F00000000000000000000004 /* App */, F00000000000000000000005 /* Models */, F00000000000000000000006 /* Services */, F00000000000000000000007 /* Stores */, F00000000000000000000008 /* Views */, B00000000000000000000012 /* Info.plist */,); };
+		F00000000000000000000003 /* Products */ = {isa = PBXGroup; name = Products; sourceTree = "<group>"; children = (D00000000000000000000001 /* FareGlow.app */,); };
+		F00000000000000000000004 /* App */ = {isa = PBXGroup; path = App; sourceTree = "<group>"; children = (B00000000000000000000001 /* FareGlowApp.swift */, B00000000000000000000002 /* AppConfiguration.swift */, B00000000000000000000003 /* SunriseTheme.swift */,); };
+		F00000000000000000000005 /* Models */ = {isa = PBXGroup; path = Models; sourceTree = "<group>"; children = (B00000000000000000000004 /* FareSearch.swift */, B00000000000000000000005 /* FlightOffer.swift */, B00000000000000000000006 /* SearchHistory.swift */,); };
+		F00000000000000000000006 /* Services */ = {isa = PBXGroup; path = Services; sourceTree = "<group>"; children = (B00000000000000000000007 /* SupabaseService.swift */, B00000000000000000000008 /* FareGlowAPI.swift */,); };
+		F00000000000000000000007 /* Stores */ = {isa = PBXGroup; path = Stores; sourceTree = "<group>"; children = (B00000000000000000000009 /* AccountStore.swift */, B0000000000000000000000A /* HistoryStore.swift */, B0000000000000000000000B /* SearchStore.swift */,); };
+		F00000000000000000000008 /* Views */ = {isa = PBXGroup; path = Views; sourceTree = "<group>"; children = (B0000000000000000000000C /* SearchView.swift */, B0000000000000000000000D /* AdvancedFiltersView.swift */, B0000000000000000000000E /* ResultsView.swift */, B0000000000000000000000F /* AccountView.swift */, B00000000000000000000010 /* SavedSearchesView.swift */, B00000000000000000000011 /* SearchHistoryView.swift */, B00000000000000000000013 /* AirportPicker.swift */,); };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		110000000000000000000001 /* FareGlow */ = {isa = PBXNativeTarget; buildConfigurationList = 120000000000000000000002 /* Build configuration list for PBXNativeTarget "FareGlow" */; buildPhases = (130000000000000000000001 /* Sources */, E00000000000000000000001 /* Frameworks */, 140000000000000000000001 /* Resources */,); buildRules = (); dependencies = (); name = FareGlow; packageProductDependencies = (C00000000000000000000001 /* Supabase */,); productName = FareGlow; productReference = D00000000000000000000001 /* FareGlow.app */; productType = "com.apple.product-type.application"; };
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		150000000000000000000001 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = YES; LastSwiftUpdateCheck = 2660; LastUpgradeCheck = 2660; TargetAttributes = {110000000000000000000001 = {CreatedOnToolsVersion = 26.6; }; }; }; buildConfigurationList = 120000000000000000000001 /* Build configuration list for PBXProject "FareGlow" */; compatibilityVersion = "Xcode 15.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base,); mainGroup = F00000000000000000000001; packageReferences = (160000000000000000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */,); productRefGroup = F00000000000000000000003 /* Products */; projectDirPath = ""; projectRoot = ""; targets = (110000000000000000000001 /* FareGlow */,); };
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		140000000000000000000001 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		130000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000001 /* FareGlowApp.swift in Sources */, A00000000000000000000002 /* AppConfiguration.swift in Sources */, A00000000000000000000003 /* SunriseTheme.swift in Sources */, A00000000000000000000004 /* FareSearch.swift in Sources */, A00000000000000000000005 /* FlightOffer.swift in Sources */, A00000000000000000000006 /* SearchHistory.swift in Sources */, A00000000000000000000007 /* SupabaseService.swift in Sources */, A00000000000000000000008 /* FareGlowAPI.swift in Sources */, A00000000000000000000009 /* AccountStore.swift in Sources */, A0000000000000000000000A /* HistoryStore.swift in Sources */, A0000000000000000000000B /* SearchStore.swift in Sources */, A0000000000000000000000C /* SearchView.swift in Sources */, A0000000000000000000000D /* AdvancedFiltersView.swift in Sources */, A0000000000000000000000E /* ResultsView.swift in Sources */, A0000000000000000000000F /* AccountView.swift in Sources */, A00000000000000000000010 /* SavedSearchesView.swift in Sources */, A00000000000000000000011 /* SearchHistoryView.swift in Sources */, A00000000000000000000013 /* AirportPicker.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		170000000000000000000001 /* Debug project */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Debug; };
+		170000000000000000000002 /* Release project */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Release; };
+		170000000000000000000003 /* Debug target */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = FareGlow/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = ca.fareglow.ios; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		170000000000000000000004 /* Release target */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = FareGlow/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 1.0; PRODUCT_BUNDLE_IDENTIFIER = ca.fareglow.ios; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = iphoneos; SUPPORTED_PLATFORMS = "iphoneos iphonesimulator"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
+		120000000000000000000001 /* Project config list */ = {isa = XCConfigurationList; buildConfigurations = (170000000000000000000001 /* Debug project */, 170000000000000000000002 /* Release project */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		120000000000000000000002 /* Target config list */ = {isa = XCConfigurationList; buildConfigurations = (170000000000000000000003 /* Debug target */, 170000000000000000000004 /* Release target */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		160000000000000000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/supabase/supabase-swift.git"; requirement = {kind = upToNextMajorVersion; minimumVersion = 2.0.0; }; };
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C00000000000000000000001 /* Supabase */ = {isa = XCSwiftPackageProductDependency; package = 160000000000000000000001 /* XCRemoteSwiftPackageReference "supabase-swift" */; productName = Supabase; };
+/* End XCSwiftPackageProductDependency section */
+
+	};
+	rootObject = 150000000000000000000001 /* Project object */;
+}

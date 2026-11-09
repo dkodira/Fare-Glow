@@ -31,9 +31,9 @@ The private and personal-key deployments can run independently with different en
 
 ## Live flight searches
 
-Fare Glow uses SerpApi's Google Flights engine for live round-trip fare searches. It checks up to eight date pairs at a time. When the chosen trip length permits, up to two pairs favor Monday departures with Tuesday/Wednesday returns, a market-wide pattern from Google's 2026 analysis; the other pairs stay spread across the user's date and trip-length ranges. This is only a heuristic, since route and season prices vary. Users can request more date pairs in later batches. Identical route/date/passenger queries are reused from a 55-minute in-memory cache; SerpApi also provides free caching for identical searches for one hour. The app reads SerpApi account usage before each uncached search and stops at the configured ceiling.
+Fare Glow uses SerpApi's Google Flights engine for live round-trip fare searches. Searches use 8 date pairs per request by default. A signed-in user can request more than 8 only after saving their own SerpApi key; the server then uses that personal key and bounds the selection by its remaining allowance and available candidate dates. Without a saved personal key, searches use Fare Glow's shared key in owner mode and stay at 8 pairs per request. Larger selections run as sequential server chunks of at most eight pairs, with progress shown in the website. When the chosen trip length permits, up to two pairs favor Monday departures with Tuesday/Wednesday returns, a market-wide pattern from Google's 2026 analysis; the other pairs stay spread across the user's date and trip-length ranges. This is only a heuristic, since route and season prices vary. Users can request more date pairs in later searches. Identical route/date/passenger queries are reused from a 55-minute in-memory cache; SerpApi also provides free caching for identical searches for one hour. The app reads SerpApi account usage before each uncached search and stops at the configured ceiling.
 
-Fare Glow needs three-letter airport codes. Enter a code directly (such as `YYZ`) or in parentheses after a city (such as `Toronto (YYZ)`). Trip length is counted in calendar days, including the departure date, and can extend to eight approximate months. Month options use 30-day increments, so eight months is 240 inclusive days and returns 239 days after departure. Search results show the lowest round-trip price found among the checked date pairs, and link to Google Flights to confirm the itinerary and current fare. A sampled search can miss a cheaper date pair that has not been checked yet.
+Fare Glow needs three-letter airport codes. Enter a code directly (such as `YYZ`) or in parentheses after a city (such as `Toronto (YYZ)`). Trip length is counted in calendar days, including the departure date, with exact whole-day choices from 1 to 240. Search results show the lowest round-trip price found among the checked date pairs, and link to Google Flights to confirm the itinerary and current fare. A sampled search can miss a cheaper date pair that has not been checked yet.
 
 The cache is held in the running Next.js process, and uncached calls are serialized while Fare Glow checks account usage to avoid parallel searches crossing the configured ceiling. This is suitable for local use and a single server process; a multi-instance public deployment should move the cache and shared monthly budget guard into a shared database before opening it to many users.
 
@@ -51,13 +51,21 @@ You can search using the preview fares without an account.
 
 1. Create a Supabase project.
 2. Copy `.env.example` to `.env.local` and fill in the project URL and public anon key from Supabase project settings.
-3. In the Supabase SQL Editor, run `supabase/schema.sql`. This creates saved-search support and the encrypted-key table used by BYOK mode.
+3. In the Supabase SQL Editor, run `supabase/schema.sql`, then `supabase/migrations/20261108_add_pairs_per_request.sql`. The migration adds a defaulted count field to existing saved searches; older rows continue to behave as 8.
 4. In Supabase Auth settings, enable email sign-in and set the app’s local and deployed URLs as allowed redirect URLs.
 5. Restart the development server.
 
 Saved searches are private to the signed-in account through row-level security. Searches store route, date window, trip-length range, traveler count, and alert preference. The fare itself is not saved as a promise; prices must be checked again when a search runs.
 
 To enable the **API key** option in the account menu, retrieve the Supabase service role key from Project Settings → API Keys and create a 32-byte encryption secret with `openssl rand -hex 32`. Add both as server-only environment secrets. In owner mode these enable optional personal keys while keeping your server key as the fallback. To make personal keys required for all searches, deploy with both `SERPAPI_KEY_MODE` values set to `byok`.
+
+## iPhone app
+
+Open `ios/FareGlow.xcodeproj` in Xcode. In `ios/FareGlow/Info.plist`, set `FARE_GLOW_API_BASE_URL` to the public Fare Glow deployment URL, `SUPABASE_URL` to the project URL, and `SUPABASE_ANON_KEY` to the public anon/publishable key. These are client configuration values; never add the service-role key, encryption secret, or any SerpApi key to the iOS app.
+
+In the Supabase SQL Editor, run `supabase/migrations/20261108_add_ios_search_lists.sql`. In Supabase Auth, allow the redirect URL `fareglow://auth-callback`, enable email sign-in, and configure Google if users will use Google sign-in. The same Supabase account and saved SerpApi key work on the website and iPhone. Signed-in iPhone saved searches and history use separate `ios_saved_searches` and `ios_search_history` tables; signed-out history stays on that iPhone.
+
+The iPhone app checks 8 return-date pairs per request by default and uses Fare Glow's shared SerpApi key in owner mode. Signing in and saving a personal SerpApi key unlocks larger counts, bounded by remaining allowance and valid date pairs. Each server call still checks at most 8 pairs. The app keeps the SerpApi key on the server and clears the entry field after saving.
 
 ## Price alerts
 

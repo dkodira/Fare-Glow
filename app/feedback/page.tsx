@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useState } from "react";
+import { Sparkles } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { LocalizedContent, useLocale } from "@/components/LocaleProvider";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
@@ -58,7 +59,7 @@ export default function FeedbackPage() {
     <main className="shell"><LocalizedContent>
       <header className="topbar">
         <a className="brand" href="/" aria-label="Fare Glow home">
-          <span className="brand-mark" aria-hidden="true">✦</span><span>Fare <span className="brand-glow">Glow</span></span>
+          <span className="brand-mark" aria-hidden="true"><Sparkles size={19} strokeWidth={1.8} /></span><span>Fare <span className="brand-glow">Glow</span></span>
         </a>
         <div className="top-actions">
           <LanguageSwitcher />
@@ -85,7 +86,7 @@ export default function FeedbackPage() {
         {hasMore && <button className="load-feedback" type="button" disabled={loading} onClick={() => loadFeedback(offset, true)}>{loading ? "Loading…" : "Show more feedback"}</button>}
       </section>
 
-      <footer className="footer"><div className="footer-brand"><span className="brand-mark small" aria-hidden="true">✦</span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-country"><a href="/">Back to flight search</a></span><span className="footer-credit">Dileep Kodira App</span></footer>
+      <footer className="footer"><div className="footer-brand"><span className="brand-mark small" aria-hidden="true"><Sparkles size={14} strokeWidth={1.8} /></span><span>Fare <span className="brand-glow">Glow</span></span></div><span>Find the days that make the trip.</span><span className="footer-country"><a href="/">Back to flight search</a></span><span className="footer-credit">Dileep Kodira App</span></footer>
     </LocalizedContent></main>
   );
 }
