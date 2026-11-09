@@ -1,4 +1,4 @@
-import { DEFAULT_PAIRS_PER_REQUEST, MAX_SEARCH_API_CHUNK, type AdvancedFilters, type FlightOffer, type SearchInput } from "@/lib/types";
+import { DEFAULT_PAIRS_PER_REQUEST, MAX_SEARCH_API_CHUNK, type AdvancedFilters, type FlightDeal, type FlightOffer, type SearchInput } from "@/lib/types";
 
 type Candidate = { outboundDate: string; returnDate: string };
 type SerpFlightSegment = {
@@ -17,6 +17,23 @@ type SerpSearchResponse = {
   best_flights?: SerpFlight[];
   other_flights?: SerpFlight[];
 };
+type SerpDealsResponse = {
+  error?: string;
+  deals?: Array<{
+    name?: string;
+    country?: string;
+    price?: number;
+    average_price?: number;
+    discount_percentage?: number;
+    start_date?: string;
+    end_date?: string;
+    arrival_airport_code?: string;
+    airline?: string;
+    stops?: number;
+    flight_duration?: number;
+    flight_link?: string;
+  }>;
+};
 export type SerpAccount = {
   account_status?: string;
   plan_searches_left?: number;
@@ -28,6 +45,8 @@ const MAX_BATCH_SIZE = MAX_SEARCH_API_CHUNK;
 const CACHE_TTL_MS = 55 * 60 * 1000;
 const responseCache = new Map<string, { expiresAt: number; offers: FlightOffer[] }>();
 const inFlight = new Map<string, Promise<FlightOffer[]>>();
+const dealsCache = new Map<string, { expiresAt: number; deals: FlightDeal[] }>();
+const dealsInFlight = new Map<string, Promise<FlightDeal[]>>();
 let budgetQueue: Promise<void> = Promise.resolve();
 
 async function withBudgetLock<T>(operation: () => Promise<T>) {
@@ -316,6 +335,101 @@ export async function searchLiveOffers(input: SearchInput, batch: number, option
     budgetReached,
     usageRemaining,
   };
+}
+
+/** Supplement sampled route fares with destination-matched Google Flights deal data. */
+export async function searchLiveDeals(input: SearchInput, destinations: string[], options?: {
+  apiKey?: string;
+  cacheScope?: string;
+  monthlyCap?: number;
+}) {
+  const apiKey = options?.apiKey ?? process.env.SERPAPI_API_KEY;
+  if (!apiKey) throw new Error("Live fares are not connected yet. Add SERPAPI_API_KEY to .env.local, then restart Fare Glow.");
+  const origin = airportCode(input.origin);
+  if (!origin) throw new Error("For live fares, include a 3-letter departure airport code.");
+  const destinationCodes = destinations.map(airportCode).filter((code): code is string => Boolean(code));
+  if (!destinationCodes.length) return [] as FlightDeal[];
+  const cacheScope = options?.cacheScope ?? "owner";
+  const monthlyCap = options?.monthlyCap ?? getBudgetCap();
+  const key = [cacheScope, origin, destinationCodes.join(","), input.dateFrom, input.dateTo, input.minNights, input.maxNights, input.travellers, input.currency, JSON.stringify(input.advanced ?? {})].join("|");
+  const cached = dealsCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.deals;
+  const pending = dealsInFlight.get(key);
+  if (pending) return pending;
+
+  const request = withBudgetLock(async () => {
+    const account = await getSerpApiAccount(apiKey);
+    const monthlyUsage = account.this_month_usage ?? 0;
+    const allowedSearchCount = Math.min(monthlyCap, account.searches_per_month ?? 250);
+    if (monthlyUsage >= allowedSearchCount || (account.plan_searches_left !== undefined && account.plan_searches_left <= 0)) {
+      throw new Error("Fare Glow has reached its SerpApi search budget for this month. Try again when the allowance renews.");
+    }
+
+    const url = new URL("https://serpapi.com/search.json");
+    url.searchParams.set("engine", "google_flights_deals");
+    url.searchParams.set("departure_id", origin);
+    url.searchParams.set("outbound_date", `${input.dateFrom},${input.dateTo}`);
+    url.searchParams.set("trip_length", input.minNights === input.maxNights ? String(input.minNights) : `${input.minNights},${input.maxNights}`);
+    url.searchParams.set("type", "1");
+    url.searchParams.set("adults", String(input.travellers));
+    url.searchParams.set("currency", input.currency);
+    url.searchParams.set("gl", "ca");
+    url.searchParams.set("hl", "en");
+    const advanced = input.advanced;
+    if (advanced?.cabin && advanced.cabin > 1) url.searchParams.set("travel_class", String(advanced.cabin));
+    const stops = advanced ? { any: "0", nonstop: "1", one: "2", two: "3" }[advanced.stops] : "0";
+    if (stops && stops !== "0") url.searchParams.set("stops", stops);
+    if (Array.isArray(advanced?.airlines) && advanced.airlines.length && (advanced.airlineMode === "include" || advanced.airlineMode === "exclude")) {
+      url.searchParams.set(advanced.airlineMode === "include" ? "include_airlines" : "exclude_airlines", advanced.airlines.join(","));
+    }
+    if (advanced?.maxPrice && Number(advanced.maxPrice) > 0) url.searchParams.set("max_price", String(Math.floor(Number(advanced.maxPrice))));
+    if (advanced?.maxDuration && advanced.maxDuration > 0) url.searchParams.set("max_duration", String(advanced.maxDuration));
+    url.searchParams.set("api_key", apiKey);
+
+    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(25_000) });
+    const data = await response.json() as SerpDealsResponse;
+    if (!response.ok || data.error) throw new Error(data.error || "SerpApi could not search Google Flights deals.");
+
+    const desiredCodes = new Set(destinationCodes);
+    const bestByDestination = new Map<string, FlightDeal>();
+    for (const raw of data.deals ?? []) {
+      const code = raw.arrival_airport_code?.toUpperCase();
+      if (!code || !desiredCodes.has(code)) continue;
+      if (raw.start_date && (raw.start_date < input.dateFrom || raw.start_date > input.dateTo)) continue;
+      if (raw.end_date && (raw.end_date < input.dateFrom || raw.end_date > input.dateTo)) continue;
+      if (raw.start_date && raw.end_date) {
+        const tripDays = daysBetween(raw.start_date, raw.end_date) + 1;
+        if (tripDays < input.minNights || tripDays > input.maxNights) continue;
+      }
+      if (!Number.isFinite(raw.price) || (raw.price ?? 0) <= 0 || !Number.isFinite(raw.average_price) || (raw.average_price ?? 0) <= 0 || !Number.isFinite(raw.discount_percentage) || (raw.discount_percentage ?? -1) < 0 || (raw.discount_percentage ?? 101) > 100) continue;
+      if (!raw.flight_link?.startsWith("https://www.google.com/travel/flights")) continue;
+      const deal: FlightDeal = {
+        destinationCode: code,
+        destinationName: raw.name || code,
+        country: raw.country,
+        price: Math.round(raw.price!),
+        averagePrice: Math.round(raw.average_price!),
+        discountPercentage: Math.round(raw.discount_percentage!),
+        startDate: raw.start_date,
+        endDate: raw.end_date,
+        airline: raw.airline,
+        stops: raw.stops,
+        flightDurationMinutes: raw.flight_duration,
+        flightLink: raw.flight_link,
+      };
+      const current = bestByDestination.get(code);
+      if (!current || deal.discountPercentage > current.discountPercentage || (deal.discountPercentage === current.discountPercentage && deal.price < current.price)) {
+        bestByDestination.set(code, deal);
+      }
+    }
+    const deals = [...bestByDestination.values()].sort((a, b) => destinationCodes.indexOf(a.destinationCode) - destinationCodes.indexOf(b.destinationCode));
+    dealsCache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, deals });
+    return deals;
+  });
+
+  dealsInFlight.set(key, request);
+  try { return await request; }
+  finally { dealsInFlight.delete(key); }
 }
 
 function parseDuration(value: string) {

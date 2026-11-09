@@ -19,6 +19,8 @@ export const MAX_SEARCH_API_CHUNK = 8;
 export type SearchInput = {
   origin: string;
   destination: string;
+  /** Full selected destination list. Missing on older saved searches; destination remains the legacy first value. */
+  destinations?: string[];
   currency: FareCurrency;
   dateFrom: string;
   dateTo: string;
@@ -47,6 +49,8 @@ export type AdvancedFilters = {
 
 export type FlightOffer = {
   id: string;
+  /** Destination airport label used to group multi-destination results. */
+  destination?: string;
   departureDate: string;
   returnDate: string;
   price: number;
@@ -58,4 +62,20 @@ export type FlightOffer = {
   arrivalTime?: string;
   durationMinutes?: number;
   emissionsGrams?: number;
+};
+
+/** A destination-matched Google Flights deal, separate from sampled route fares. */
+export type FlightDeal = {
+  destinationCode: string;
+  destinationName: string;
+  country?: string;
+  price: number;
+  averagePrice: number;
+  discountPercentage: number;
+  startDate?: string;
+  endDate?: string;
+  airline?: string;
+  stops?: number;
+  flightDurationMinutes?: number;
+  flightLink: string;
 };
